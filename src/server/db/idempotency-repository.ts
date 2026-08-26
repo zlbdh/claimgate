@@ -33,38 +33,65 @@ function validateResult(
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== "string" || !("value" in descriptors[key]))) {
-    throw new DomainError(errorCode);
+  const fields = new Map<string, unknown>();
+  for (const key of keys) {
+    if (typeof key !== "string") throw new DomainError(errorCode);
+    const descriptorHolder = Object.getOwnPropertyDescriptor(descriptors, key);
+    if (!descriptorHolder || !Object.hasOwn(descriptorHolder, "value")) {
+      throw new DomainError(errorCode);
+    }
+    const descriptor = descriptorHolder.value as PropertyDescriptor;
+    if (!descriptor.enumerable || !Object.hasOwn(descriptor, "value")) {
+      throw new DomainError(errorCode);
+    }
+    fields.set(key, descriptor.value);
   }
-  const record = value as Record<string, unknown>;
-  if (record.kind === "report_ack") {
+  const kind = fields.get("kind");
+  if (kind === "report_ack") {
+    const reportId = fields.get("reportId");
+    const status = fields.get("status");
+    const version = fields.get("version");
     if (
       !["draft_create", "draft_update"].includes(request.action)
-      || keys.length !== 4
-      || !["kind", "reportId", "status", "version"].every((key) => keys.includes(key))
-      || typeof record.reportId !== "string"
-      || record.status !== "DRAFT"
-      || !Number.isSafeInteger(record.version)
-      || Number(record.version) < 1
+      || fields.size !== 4
+      || !["kind", "reportId", "status", "version"].every((key) => fields.has(key))
+      || typeof reportId !== "string"
+      || status !== "DRAFT"
+      || !Number.isSafeInteger(version)
+      || Number(version) < 1
     ) {
       throw new DomainError(errorCode);
     }
-  } else if (record.kind === "claim_ack") {
+    return Object.defineProperties(Object.create(null) as object, {
+      kind: { configurable: true, enumerable: true, value: kind, writable: true },
+      reportId: { configurable: true, enumerable: true, value: reportId, writable: true },
+      status: { configurable: true, enumerable: true, value: status, writable: true },
+      version: { configurable: true, enumerable: true, value: version, writable: true },
+    }) as IdempotencyResult;
+  }
+  if (kind === "claim_ack") {
+    const claimId = fields.get("claimId");
+    const status = fields.get("status");
+    const version = fields.get("version");
     if (
       request.action !== "claim_stage"
-      || keys.length !== 4
-      || !["kind", "claimId", "status", "version"].every((key) => keys.includes(key))
-      || typeof record.claimId !== "string"
-      || record.status !== "EVIDENCE_REQUIRED"
-      || !Number.isSafeInteger(record.version)
-      || Number(record.version) < 1
+      || fields.size !== 4
+      || !["kind", "claimId", "status", "version"].every((key) => fields.has(key))
+      || typeof claimId !== "string"
+      || status !== "EVIDENCE_REQUIRED"
+      || !Number.isSafeInteger(version)
+      || Number(version) < 1
     ) {
       throw new DomainError(errorCode);
     }
-  } else {
-    throw new DomainError(errorCode);
+    return Object.defineProperties(Object.create(null) as object, {
+      kind: { configurable: true, enumerable: true, value: kind, writable: true },
+      claimId: { configurable: true, enumerable: true, value: claimId, writable: true },
+      status: { configurable: true, enumerable: true, value: status, writable: true },
+      version: { configurable: true, enumerable: true, value: version, writable: true },
+    }) as IdempotencyResult;
   }
-  return value as IdempotencyResult;
+  throw new DomainError(errorCode);
 }
 
 function canonicalResult(
@@ -94,24 +121,21 @@ function canonicalResult(
     parsed,
     errorCode,
   );
-  const result: Record<string, unknown> = {};
-  if (parsed.kind === "report_ack") {
-    result.kind = "report_ack";
-    result.reportId = parsed.reportId;
-    result.status = "DRAFT";
-    result.version = parsed.version;
-  } else {
-    result.kind = "claim_ack";
-    result.claimId = parsed.claimId;
-    result.status = "EVIDENCE_REQUIRED";
-    result.version = parsed.version;
-  }
-  Object.defineProperty(result, "toJSON", {
-    configurable: false,
-    enumerable: false,
-    value: undefined,
-    writable: false,
-  });
+  const result = parsed.kind === "report_ack"
+    ? Object.defineProperties({}, {
+        kind: { configurable: true, enumerable: true, value: "report_ack", writable: true },
+        reportId: { configurable: true, enumerable: true, value: parsed.reportId, writable: true },
+        status: { configurable: true, enumerable: true, value: "DRAFT", writable: true },
+        version: { configurable: true, enumerable: true, value: parsed.version, writable: true },
+        toJSON: { configurable: false, enumerable: false, value: undefined, writable: false },
+      })
+    : Object.defineProperties({}, {
+        kind: { configurable: true, enumerable: true, value: "claim_ack", writable: true },
+        claimId: { configurable: true, enumerable: true, value: parsed.claimId, writable: true },
+        status: { configurable: true, enumerable: true, value: "EVIDENCE_REQUIRED", writable: true },
+        version: { configurable: true, enumerable: true, value: parsed.version, writable: true },
+        toJSON: { configurable: false, enumerable: false, value: undefined, writable: false },
+      });
   return { result: result as IdempotencyResult, resultJson };
 }
 
