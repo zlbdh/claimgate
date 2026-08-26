@@ -1,0 +1,12 @@
+.worktrees/
+node_modules/
+.next/
+coverage/
+test-results/
+playwright-report/
+*.log
+.env*
+!.env.example
+data/*.db
+data/*.db-*
+
