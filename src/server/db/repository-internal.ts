@@ -1,4 +1,5 @@
 import { DomainError } from "@/shared/domain-error";
+import type { DomainErrorCode } from "@/shared/domain-error";
 import type { DemoInstance, RepositoryContext } from "./repository-types";
 
 type DemoInstanceRow = {
@@ -15,7 +16,33 @@ export function requireInteger(value: number, positive = false): void {
 }
 
 export function requireText(value: string): void {
-  if (!value || value.length > 512) throw new DomainError("VALIDATION_FAILED");
+  if (typeof value !== "string" || !value || value.length > 512) {
+    throw new DomainError("VALIDATION_FAILED");
+  }
+}
+
+type PublicActorId = "claimant-demo" | "staff-demo";
+type ActorId = "system" | PublicActorId;
+
+export function requireActor(value: string, allowSystem: true): ActorId;
+export function requireActor(value: string, allowSystem?: false): PublicActorId;
+export function requireActor(value: string, allowSystem = false): ActorId {
+  const allowed = allowSystem
+    ? ["system", "claimant-demo", "staff-demo"]
+    : ["claimant-demo", "staff-demo"];
+  if (typeof value !== "string" || !allowed.includes(value)) {
+    throw new DomainError("VALIDATION_FAILED");
+  }
+  return value as ActorId;
+}
+
+export function requirePatchKeys(value: object, allowedKeys: readonly string[]): void {
+  if (
+    Object.getPrototypeOf(value) !== Object.prototype
+    || Reflect.ownKeys(value).some((key) => typeof key !== "string" || !allowedKeys.includes(key))
+  ) {
+    throw new DomainError("INVALID_STATE_TRANSITION");
+  }
 }
 
 export function activeInstance(context: RepositoryContext, demoInstanceId: string): DemoInstance {
@@ -38,6 +65,7 @@ export function immediate<T>(context: RepositoryContext, operation: () => T): T 
 
 export function rejectPromise(value: unknown): void {
   if (value && typeof value === "object" && "then" in value) {
+    void Promise.resolve(value).catch(() => undefined);
     throw new DomainError("CONFIGURATION_ERROR");
   }
 }
@@ -48,12 +76,51 @@ export function rejectAsyncCallback(callback: (...args: never[]) => unknown): vo
   }
 }
 
+export function assertNoInternalInventoryId(
+  context: RepositoryContext,
+  demoInstanceId: string,
+  value: unknown,
+  code: DomainErrorCode,
+): void {
+  const internalIds = (context.database.prepare(
+    "SELECT id FROM found_items WHERE demo_instance_id = ?",
+  ).all(demoInstanceId) as Array<{ id: string }>).map(({ id }) => id);
+  const seen = new Set<object>();
+  const inspect = (entry: unknown): void => {
+    if (typeof entry === "string") {
+      if (internalIds.some((id) => entry.includes(id))) throw new DomainError(code);
+      return;
+    }
+    if (!entry || typeof entry !== "object") return;
+    if (seen.has(entry)) throw new DomainError(code);
+    seen.add(entry);
+    for (const key of Reflect.ownKeys(entry)) {
+      if (typeof key === "symbol") throw new DomainError(code);
+      inspect(key);
+      inspect(Reflect.get(entry, key));
+    }
+  };
+  inspect(value);
+}
+
+export function validatePublicTags(value: unknown, code: DomainErrorCode): string[] {
+  if (
+    !Array.isArray(value)
+    || value.length > 16
+    || !value.every((entry) => typeof entry === "string" && entry.length > 0 && entry.length <= 64)
+  ) {
+    throw new DomainError(code);
+  }
+  return [...value];
+}
+
 export function parseStringArray(value: string): string[] {
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
+  try {
+    return validatePublicTags(JSON.parse(value) as unknown, "CONFIGURATION_ERROR");
+  } catch (error) {
+    if (error instanceof DomainError) throw error;
     throw new DomainError("CONFIGURATION_ERROR");
   }
-  return parsed;
 }
 
 export function stateChanged(): never {

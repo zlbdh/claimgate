@@ -6,8 +6,15 @@ import type {
   RepositoryContext,
   UpdateClaimInput,
 } from "./repository-types";
-import { appendAuditEvent } from "./audit-repository";
-import { activeInstance, immediate, stateChanged } from "./repository-internal";
+import { appendClaimAudit } from "./audit-repository";
+import {
+  activeInstance,
+  assertNoInternalInventoryId,
+  requireActor,
+  requirePatchKeys,
+  immediate,
+  stateChanged,
+} from "./repository-internal";
 
 type ClaimRow = Omit<ClaimRecord, "evidenceEligible"> & { evidenceEligible: number };
 
@@ -27,12 +34,16 @@ function getClaim(context: RepositoryContext, demoInstanceId: string, claimId: s
   const row = context.database.prepare(`${CLAIM_SELECT} WHERE demo_instance_id = ? AND id = ?`)
     .get(demoInstanceId, claimId) as ClaimRow | undefined;
   if (!row) throw new DomainError("NOT_FOUND");
-  return toRecord(row);
+  const record = toRecord(row);
+  assertNoInternalInventoryId(context, demoInstanceId, record, "CONFIGURATION_ERROR");
+  return record;
 }
 
 export function createClaim(context: RepositoryContext, input: CreateClaimInput): ClaimRecord {
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
+    const claimantActorId = requireActor(input.claimantActorId);
+    if (claimantActorId !== "claimant-demo") throw new DomainError("VALIDATION_FAILED");
     const report = context.database.prepare(
       "SELECT 1 FROM lost_reports WHERE demo_instance_id = ? AND id = ?",
     ).get(input.demoInstanceId, input.reportId);
@@ -53,13 +64,7 @@ export function createClaim(context: RepositoryContext, input: CreateClaimInput)
       input.inventoryItemId,
       input.claimantActorId,
     );
-    appendAuditEvent(context, input.demoInstanceId, {
-      resourceType: "CLAIM",
-      resourcePublicId: claimId,
-      action: "CLAIM_CREATED",
-      actorId: input.claimantActorId,
-      result: "SUCCEEDED",
-    });
+    appendClaimAudit(context, input.demoInstanceId, claimId, "CLAIM_CREATED", claimantActorId);
     return getClaim(context, input.demoInstanceId, claimId);
   });
 }
@@ -67,12 +72,17 @@ export function createClaim(context: RepositoryContext, input: CreateClaimInput)
 export function updateClaim(context: RepositoryContext, input: UpdateClaimInput): ClaimRecord {
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
+    const actorId = requireActor(input.actorId);
+    requirePatchKeys(input.patch, ["status", "attempts", "evidenceEligible"]);
     const row = context.database.prepare(`${CLAIM_SELECT} WHERE demo_instance_id = ? AND id = ?`)
       .get(input.demoInstanceId, input.claimId) as ClaimRow | undefined;
     if (!row || row.version !== input.expectedVersion) stateChanged();
     const existing = toRecord(row);
     const next = { ...existing, ...input.patch };
     if (input.patch.status !== undefined) {
+      if (!["UNDER_REVIEW", "REJECTED", "LOCKED", "EVIDENCE_REQUIRED"].includes(input.patch.status)) {
+        throw new DomainError("INVALID_STATE_TRANSITION");
+      }
       assertClaimTransition(existing.status, input.patch.status);
     }
     const result = context.database.prepare(`
@@ -90,13 +100,7 @@ export function updateClaim(context: RepositoryContext, input: UpdateClaimInput)
       input.expectedVersion,
     );
     if (result.changes !== 1) stateChanged();
-    appendAuditEvent(context, input.demoInstanceId, {
-      resourceType: "CLAIM",
-      resourcePublicId: input.claimId,
-      action: "CLAIM_UPDATED",
-      actorId: input.actorId,
-      result: "SUCCEEDED",
-    });
+    appendClaimAudit(context, input.demoInstanceId, input.claimId, "CLAIM_UPDATED", actorId);
     return getClaim(context, input.demoInstanceId, input.claimId);
   });
 }

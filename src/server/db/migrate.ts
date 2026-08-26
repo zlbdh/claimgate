@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import type { Keyring } from "@/server/security/keyring";
@@ -72,7 +72,11 @@ function verifyMetadata(metadata: MetadataRow | undefined, keyring: Keyring): vo
   }
 }
 
-function migrateNewDatabase(database: Database.Database, keyring: Keyring): void {
+function migrateDatabase(
+  database: Database.Database,
+  keyring: Keyring,
+  allowCreateMetadata: boolean,
+): void {
   database.transaction(() => {
     database.exec(SCHEMA_SQL);
     const existing = readMetadata(database);
@@ -80,6 +84,7 @@ function migrateNewDatabase(database: Database.Database, keyring: Keyring): void
       verifyMetadata(existing, keyring);
       return;
     }
+    if (!allowCreateMetadata) throw new DomainError("CONFIGURATION_ERROR");
     const databaseUuid = randomUUID();
     const salt = randomBytes(32);
     const authenticator = makeAuthenticator(keyring, SCHEMA_VERSION, databaseUuid, salt);
@@ -91,27 +96,50 @@ function migrateNewDatabase(database: Database.Database, keyring: Keyring): void
   }).immediate();
 }
 
+function waitForInitializer(lockPath: string): void {
+  const deadline = Date.now() + 5_000;
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  while (existsSync(lockPath)) {
+    if (Date.now() >= deadline) throw new DomainError("CONFIGURATION_ERROR");
+    Atomics.wait(sleeper, 0, 0, 10);
+  }
+}
+
 export function initializeDatabase(options: {
   databasePath: string;
   keyring: Keyring;
 }): Database.Database {
-  const isBrandNew = !existsSync(options.databasePath);
-  const database = openDatabaseConnection(options.databasePath);
-  try {
-    if (isBrandNew) {
-      migrateNewDatabase(database, options.keyring);
-    } else {
-      verifyMetadata(readMetadata(database), options.keyring);
-      database.transaction(() => database.exec(SCHEMA_SQL)).immediate();
+  const lockPath = `${options.databasePath}.initialize.lock`;
+  let ownsInitializationLock = false;
+  if (!existsSync(options.databasePath)) {
+    try {
+      const descriptor = openSync(lockPath, "wx", 0o600);
+      closeSync(descriptor);
+      ownsInitializationLock = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw new DomainError("CONFIGURATION_ERROR");
+      }
+      waitForInitializer(lockPath);
     }
+  } else if (existsSync(lockPath)) {
+    waitForInitializer(lockPath);
+  }
+
+  let database: Database.Database | undefined;
+  try {
+    database = openDatabaseConnection(options.databasePath);
+    migrateDatabase(database, options.keyring, ownsInitializationLock);
     if ((database.pragma("foreign_key_check") as unknown[]).length !== 0) {
       throw new DomainError("CONFIGURATION_ERROR");
     }
     return database;
   } catch (error) {
-    database.close();
+    database?.close();
     if (error instanceof DomainError) throw error;
     throw new DomainError("CONFIGURATION_ERROR");
+  } finally {
+    if (ownsInitializationLock) rmSync(lockPath, { force: true });
   }
 }
 

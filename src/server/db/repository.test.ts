@@ -141,20 +141,18 @@ describe("事务、范围、版本与幂等契约", () => {
     const { repository } = setup();
     const instance = repository.createDemoInstance();
     const report = repository.createLostReport(createReportInput(instance.demoInstanceId));
-    const updatedReport = repository.updateLostReport({
+    const updatedReport = repository.publishLostReport({
       demoInstanceId: instance.demoInstanceId,
       reportId: report.reportId,
       expectedVersion: 1,
-      patch: { status: "PUBLISHED" },
       actorId: "claimant-demo",
     });
     expect(updatedReport.version).toBe(2);
     const beforeStaleAudit = repository.listAuditEvents(instance.demoInstanceId).length;
-    expect(() => repository.updateLostReport({
+    expect(() => repository.archiveLostReport({
       demoInstanceId: instance.demoInstanceId,
       reportId: report.reportId,
       expectedVersion: 1,
-      patch: { status: "ARCHIVED" },
       actorId: "claimant-demo",
     })).toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
     expect(repository.listAuditEvents(instance.demoInstanceId)).toHaveLength(beforeStaleAudit);
@@ -164,7 +162,7 @@ describe("事务、范围、版本与幂等契约", () => {
       demoInstanceId: instance.demoInstanceId,
       inventoryItemId: item.inventoryItemId,
       expectedVersion: 1,
-      patch: { status: "HELD" },
+      patch: { color: "navy" },
       actorId: "staff-demo",
     });
     expect(changedItem).toMatchObject({ version: 2, catalogVersion: 2 });
@@ -227,10 +225,10 @@ describe("事务、范围、版本与幂等契约", () => {
     })).toThrow("rollback-probe");
     expect(repository.listLostReports(instance.demoInstanceId)).toEqual([]);
     let asyncCallbackInvoked = false;
-    expect(() => repository.withTransaction(async () => {
+    expect(() => repository.withTransaction((async () => {
       asyncCallbackInvoked = true;
       return "not-supported";
-    }))
+    }) as never))
       .toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
     expect(asyncCallbackInvoked).toBe(false);
 
@@ -238,25 +236,30 @@ describe("事务、范围、版本与幂等契约", () => {
     const request = {
       demoInstanceId: instance.demoInstanceId,
       actorId: "claimant-demo",
-      action: "CREATE_REPORT",
+      action: "draft_create",
       idempotencyKey: "opaque-retry-key",
       requestFingerprint: "sha256:bounded-public-request-v1",
     } as const;
     const first = repository.runIdempotent(request, () => {
       mutations += 1;
       const created = repository.createLostReport(createReportInput(instance.demoInstanceId));
-      return { reportId: created.reportId, status: created.status, version: created.version };
+      return {
+        kind: "report_ack" as const,
+        reportId: created.reportId,
+        status: "DRAFT" as const,
+        version: created.version,
+      };
     });
     const auditCount = repository.listAuditEvents(instance.demoInstanceId).length;
     expect(repository.runIdempotent(request, () => {
       mutations += 1;
-      return { replayed: true };
+      return { kind: "report_ack", reportId: "not-run", status: "DRAFT", version: 1 };
     })).toEqual(first);
     expect(mutations).toBe(1);
     expect(repository.listAuditEvents(instance.demoInstanceId)).toHaveLength(auditCount);
     expect(() => repository.runIdempotent(
       { ...request, requestFingerprint: "sha256:different-public-request" },
-      () => ({ replayed: true }),
+      () => ({ kind: "report_ack", reportId: "not-run", status: "DRAFT", version: 1 }),
     )).toThrow(expect.objectContaining({ code: "CONFLICT" }));
   });
 });

@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import Database from "better-sqlite3";
+import { verifyConfiguredDatabaseKey } from "./database-authenticator.mjs";
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
@@ -33,13 +34,19 @@ if (!databasePathArgument || databasePathArgument.startsWith("--")) {
         }
         database.pragma("synchronous = FULL");
         database.pragma("busy_timeout = 5000");
-        const count = database.prepare(
+        const countExpired = () => database.prepare(
           "SELECT COUNT(*) AS count FROM demo_instances WHERE expires_at_ms <= ?",
         ).get(nowMs).count;
+        let count;
         if (apply) {
-          database.transaction(() => {
+          count = database.transaction(() => {
+            verifyConfiguredDatabaseKey(database, process.env.CLAIMGATE_HMAC_KEY);
+            const expiredInstances = countExpired();
             database.prepare("DELETE FROM demo_instances WHERE expires_at_ms <= ?").run(nowMs);
+            return expiredInstances;
           }).immediate();
+        } else {
+          count = countExpired();
         }
         process.stdout.write(`${JSON.stringify({ mode: apply ? "apply" : "dry-run", expiredInstances: count })}\n`);
       } catch {

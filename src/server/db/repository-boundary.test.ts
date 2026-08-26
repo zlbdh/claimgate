@@ -35,10 +35,10 @@ describe("外部与审计 DTO 不泄漏内部库存身份", () => {
     expect(() => repository.runIdempotent({
       demoInstanceId: instance.demoInstanceId,
       actorId: "staff-demo",
-      action: "UNSAFE_INTERNAL_RESULT",
+      action: "draft_create",
       idempotencyKey: "opaque-key",
       requestFingerprint: "bounded-request",
-    }, () => ({ inventoryItemId: item.inventoryItemId }))).toThrow(
+    }, () => ({ inventoryItemId: item.inventoryItemId }) as never)).toThrow(
       expect.objectContaining({ code: "VALIDATION_FAILED" }),
     );
 

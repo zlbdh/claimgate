@@ -39,14 +39,14 @@ describe("仓库状态写入守卫", () => {
       expectedVersion: report.version,
       actorId: "claimant-demo",
       patch: { status: "RESOLVED" },
-    })).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+    } as never)).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     expect(() => repository.updateFoundItem({
       demoInstanceId: instance.demoInstanceId,
       inventoryItemId: item.inventoryItemId,
       expectedVersion: item.version,
       actorId: "staff-demo",
       patch: { status: "RETURNED" },
-    })).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+    } as never)).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     expect(() => repository.updateClaim({
       demoInstanceId: instance.demoInstanceId,
       claimId: claim.claimId,

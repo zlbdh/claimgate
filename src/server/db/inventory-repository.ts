@@ -4,15 +4,35 @@ import type {
   ServerInternalFoundItem,
   UpdateFoundItemInput,
 } from "./repository-types";
-import { assertItemTransition } from "@/features/claims/claim-state";
-import { appendAuditEvent } from "./audit-repository";
-import { activeInstance, immediate, parseStringArray, stateChanged } from "./repository-internal";
+import { DomainError } from "@/shared/domain-error";
+import { appendInstanceAudit } from "./audit-repository";
+import {
+  activeInstance,
+  assertNoInternalInventoryId,
+  immediate,
+  parseStringArray,
+  requireActor,
+  requirePatchKeys,
+  stateChanged,
+  validatePublicTags,
+} from "./repository-internal";
 
 type ItemRow = Omit<ServerInternalFoundItem, "publicTags"> & { publicTagsJson: string };
 
 function toRecord(row: ItemRow): ServerInternalFoundItem {
   const { publicTagsJson, ...record } = row;
   return { ...record, publicTags: parseStringArray(publicTagsJson) };
+}
+
+function toSafeInternalRecord(
+  context: RepositoryContext,
+  demoInstanceId: string,
+  row: ItemRow,
+): ServerInternalFoundItem {
+  const record = toRecord(row);
+  const { inventoryItemId, ...publicFields } = record;
+  assertNoInternalInventoryId(context, demoInstanceId, publicFields, "CONFIGURATION_ERROR");
+  return { inventoryItemId, ...publicFields };
 }
 
 const ITEM_SELECT = `
@@ -27,7 +47,7 @@ export function listServerInternalFoundItems(
 ): ServerInternalFoundItem[] {
   activeInstance(context, demoInstanceId);
   return (context.database.prepare(`${ITEM_SELECT} WHERE demo_instance_id = ? ORDER BY id`)
-    .all(demoInstanceId) as ItemRow[]).map(toRecord);
+    .all(demoInstanceId) as ItemRow[]).map((row) => toSafeInternalRecord(context, demoInstanceId, row));
 }
 
 function getItem(
@@ -37,7 +57,7 @@ function getItem(
 ): ServerInternalFoundItem | undefined {
   const row = context.database.prepare(`${ITEM_SELECT} WHERE demo_instance_id = ? AND id = ?`)
     .get(demoInstanceId, inventoryItemId) as ItemRow | undefined;
-  return row ? toRecord(row) : undefined;
+  return row ? toSafeInternalRecord(context, demoInstanceId, row) : undefined;
 }
 
 export function updateFoundItem(
@@ -46,12 +66,16 @@ export function updateFoundItem(
 ): ServerInternalFoundItemMutationResult {
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
+    const actorId = requireActor(input.actorId);
+    if (actorId !== "staff-demo") throw new DomainError("VALIDATION_FAILED");
+    requirePatchKeys(input.patch, ["area", "color", "foundAt", "publicTags", "publicDescription"]);
+    if (input.patch.publicTags !== undefined) {
+      validatePublicTags(input.patch.publicTags, "VALIDATION_FAILED");
+    }
+    assertNoInternalInventoryId(context, input.demoInstanceId, input.patch, "VALIDATION_FAILED");
     const existing = getItem(context, input.demoInstanceId, input.inventoryItemId);
     if (!existing || existing.version !== input.expectedVersion) stateChanged();
     const next = { ...existing, ...input.patch };
-    if (input.patch.status !== undefined) {
-      assertItemTransition(existing.status, input.patch.status);
-    }
     const result = context.database.prepare(`
       UPDATE found_items SET found_at = ?, area = ?, color = ?, public_tags_json = ?,
         public_description = ?, status = ?, version = version + 1
@@ -73,13 +97,7 @@ export function updateFoundItem(
       WHERE id = ? AND expires_at_ms > ? RETURNING catalog_version AS catalogVersion
     `).get(input.demoInstanceId, context.now()) as { catalogVersion: number } | undefined;
     if (!catalog) stateChanged();
-    appendAuditEvent(context, input.demoInstanceId, {
-      resourceType: "INSTANCE",
-      resourcePublicId: input.demoInstanceId,
-      action: "INVENTORY_UPDATED",
-      actorId: input.actorId,
-      result: "SUCCEEDED",
-    });
+    appendInstanceAudit(context, input.demoInstanceId, "INVENTORY_UPDATED", actorId);
     return { ...getItem(context, input.demoInstanceId, input.inventoryItemId)!, ...catalog };
   });
 }

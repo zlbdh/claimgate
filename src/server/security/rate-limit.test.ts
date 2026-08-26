@@ -29,7 +29,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     const input = {
       demoInstanceId: instance.demoInstanceId,
       actorId: "claimant-demo",
-      action: "find-candidates",
+      action: "match_find",
       limit: 2,
       windowMs: 60_000,
     } as const;
@@ -63,7 +63,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     const input = {
       demoInstanceId: instance.demoInstanceId,
       actorId: "claimant-demo",
-      action: "create-report",
+      action: "draft_create",
       limit: 1,
       windowMs: 60_000,
     } as const;
@@ -90,7 +90,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
       const database = new Database(path, { timeout: 5000 });
       database.pragma("foreign_keys = ON");
       const result = createPersistentRateLimiter({ database, now: () => Number(nowText) }).consume({
-        demoInstanceId: instanceId, actorId: "parallel-actor", action: "parallel-action",
+        demoInstanceId: instanceId, actorId: "claimant-demo", action: "match_find",
         limit: 3, windowMs: 60000,
       });
       database.close();
@@ -108,7 +108,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     const persisted = test.database.prepare(`
       SELECT request_count AS requestCount FROM rate_limit_buckets
       WHERE demo_instance_id = ? AND actor_id = ? AND action = ?
-    `).get(instance.demoInstanceId, "parallel-actor", "parallel-action") as { requestCount: number };
+    `).get(instance.demoInstanceId, "claimant-demo", "match_find") as { requestCount: number };
     expect(persisted.requestCount).toBe(3);
   }, 30_000);
 });

@@ -1,7 +1,7 @@
 import type { PublicInventoryItem, DemoInstance, RepositoryContext } from "./repository-types";
 import { NORTHBRIDGE_FOUND_ITEM_SEEDS } from "./seed";
-import { activeInstance, immediate, requireInteger } from "./repository-internal";
-import { appendAuditEvent } from "./audit-repository";
+import { activeInstance, assertNoInternalInventoryId, immediate, parseStringArray, requireInteger } from "./repository-internal";
+import { appendInstanceAudit } from "./audit-repository";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1_000;
 
@@ -37,13 +37,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         item.publicDescription,
       );
     }
-    appendAuditEvent(context, instance.demoInstanceId, {
-      resourceType: "INSTANCE",
-      resourcePublicId: instance.demoInstanceId,
-      action: "DEMO_CREATED",
-      actorId: "system",
-      result: "SUCCEEDED",
-    });
+    appendInstanceAudit(context, instance.demoInstanceId, "DEMO_CREATED", "system");
     return instance;
   });
 }
@@ -69,8 +63,9 @@ export function listPublicInventory(
       public_tags_json AS publicTagsJson, public_description AS publicDescription, status
     FROM found_items WHERE demo_instance_id = ? ORDER BY found_at, id
   `).all(demoInstanceId) as Array<Omit<PublicInventoryItem, "publicTags"> & { publicTagsJson: string }>;
-  return rows.map(({ publicTagsJson, ...row }) => ({
-    ...row,
-    publicTags: JSON.parse(publicTagsJson) as string[],
-  }));
+  return rows.map(({ publicTagsJson, ...row }) => {
+    const result = { ...row, publicTags: parseStringArray(publicTagsJson) };
+    assertNoInternalInventoryId(context, demoInstanceId, result, "CONFIGURATION_ERROR");
+    return result;
+  });
 }

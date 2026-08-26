@@ -48,9 +48,11 @@ export type UpdateLostReportInput = {
   actorId: string;
   patch: Partial<Pick<
     LostReportRecord,
-    "area" | "color" | "publicTags" | "publicDescription" | "status" | "timeWindow"
+    "area" | "color" | "publicTags" | "publicDescription" | "timeWindow"
   >>;
 };
+
+export type TransitionLostReportInput = Omit<UpdateLostReportInput, "patch">;
 
 export type UpdateFoundItemInput = {
   demoInstanceId: string;
@@ -59,7 +61,7 @@ export type UpdateFoundItemInput = {
   actorId: string;
   patch: Partial<Pick<
     ServerInternalFoundItem,
-    "area" | "color" | "foundAt" | "publicTags" | "publicDescription" | "status"
+    "area" | "color" | "foundAt" | "publicTags" | "publicDescription"
   >>;
 };
 
@@ -93,7 +95,7 @@ export type UpdateClaimInput = {
   actorId: string;
   patch: Partial<Pick<
     ClaimRecord,
-    "status" | "attempts" | "evidenceEligible" | "reviewerActorId" | "passGeneration"
+    "status" | "attempts" | "evidenceEligible"
   >>;
 };
 
@@ -113,13 +115,29 @@ export type AuditEvent = {
   occurredAtMs: number;
 };
 
+export type IdempotencyAction = "draft_create" | "draft_update" | "claim_stage";
+
 export type IdempotencyRequest = {
   demoInstanceId: string;
   actorId: string;
-  action: string;
+  action: IdempotencyAction;
   idempotencyKey: string;
   requestFingerprint: string;
 };
+
+export type IdempotencyResult =
+  | {
+    kind: "report_ack";
+    reportId: string;
+    status: "DRAFT";
+    version: number;
+  }
+  | {
+    kind: "claim_ack";
+    claimId: string;
+    status: "EVIDENCE_REQUIRED";
+    version: number;
+  };
 
 export type RepositoryOptions = {
   database: Database.Database;
