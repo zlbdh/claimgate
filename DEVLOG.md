@@ -32,3 +32,17 @@
 - 决定：相邻区域与颜色族使用显式常量；结果理由仅输出稳定的公共字段说明，返回摘要不包含秘密证据字段。
 - 验证：先运行缺失模块的匹配测试确认 RED，再以最小实现通过 8 项匹配测试与 TypeScript 严格类型检查；提交前继续执行完整 verify 门。
 - 踩坑：组件分数测试必须隔离其他字段，否则时间分值会与区域、颜色和标签分值叠加；测试工厂因此支持覆盖公开字段。
+
+## 2026-08-26 [Task 3：领域状态与用途隔离密钥]
+
+### 改动内容
+
+- 新增 Report、Item、Claim 的纯状态守卫，拒绝同态、跳跃、回退和从终态离开的调用；服务层以后须在调用守卫前完成幂等短路。
+- 新增闭合 `DomainError` 代码集与固定 JSON 安全元数据；错误序列化不含堆栈、cause、资源标识符或调用方自定义详情。
+- 新增基于 Node `crypto.hkdfSync` 的用途隔离 keyring，从 `CLAIMGATE_HMAC_KEY` 派生 evidence、pickup-pass、candidate-handle 与 database-key-check 四个 32-byte 子密钥。
+
+### 决定与验证
+
+- 主密钥仅接受严格的标准 padded Base64：长度必须为 4 的倍数、回编码一致，解码后至少 32 bytes；这能避免 Node 的宽松解码把格式错误的部署配置悄悄接受。
+- HKDF 使用固定 UTF-8 salt `ClaimGate/keyring/v1` 与带用途和版本号的 UTF-8 info，避免不同安全用途复用同一子密钥。
+- TDD：先因领域模块不存在得到预期 RED；最小实现后目标测试 39 项 GREEN。完整 `npm run verify` 通过（55 项单测、lint、typecheck、文件行数与生产构建）。
