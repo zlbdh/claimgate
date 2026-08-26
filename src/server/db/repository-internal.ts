@@ -1,5 +1,6 @@
 import { DomainError } from "@/shared/domain-error";
 import type { DomainErrorCode } from "@/shared/domain-error";
+import { DEMO_IDENTITIES, isDemoUserId, type DemoUserId } from "@/shared/demo-identity";
 import type { DemoInstance, RepositoryContext } from "./repository-types";
 
 type DemoInstanceRow = {
@@ -21,20 +22,20 @@ export function requireText(value: string): void {
   }
 }
 
-type PublicActorId = "claimant-demo" | "staff-demo";
+type PublicActorId = DemoUserId;
 type ActorId = "system" | PublicActorId;
 
 export function requireActor(value: string, allowSystem: true): ActorId;
 export function requireActor(value: string, allowSystem?: false): PublicActorId;
 export function requireActor(value: string, allowSystem = false): ActorId {
-  const allowed = allowSystem
-    ? ["system", "claimant-demo", "staff-demo"]
-    : ["claimant-demo", "staff-demo"];
-  if (typeof value !== "string" || !allowed.includes(value)) {
+  if (typeof value !== "string" || (!(allowSystem && value === "system") && !isDemoUserId(value))) {
     throw new DomainError("VALIDATION_FAILED");
   }
   return value as ActorId;
 }
+
+export const CLAIMANT_ACTOR_ID = DEMO_IDENTITIES.CLAIMANT.userId;
+export const STAFF_ACTOR_ID = DEMO_IDENTITIES.STAFF.userId;
 
 export function requirePatchKeys(value: object, allowedKeys: readonly string[]): void {
   if (

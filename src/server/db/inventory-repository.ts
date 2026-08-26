@@ -13,6 +13,7 @@ import {
   parseStringArray,
   requireActor,
   requirePatchKeys,
+  STAFF_ACTOR_ID,
   stateChanged,
   validatePublicTags,
 } from "./repository-internal";
@@ -67,7 +68,7 @@ export function updateFoundItem(
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
     const actorId = requireActor(input.actorId);
-    if (actorId !== "staff-demo") throw new DomainError("VALIDATION_FAILED");
+    if (actorId !== STAFF_ACTOR_ID) throw new DomainError("VALIDATION_FAILED");
     requirePatchKeys(input.patch, ["area", "color", "foundAt", "publicTags", "publicDescription"]);
     if (input.patch.publicTags !== undefined) {
       validatePublicTags(input.patch.publicTags, "VALIDATION_FAILED");

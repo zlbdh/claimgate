@@ -10,6 +10,7 @@ import { appendClaimAudit } from "./audit-repository";
 import {
   activeInstance,
   assertNoInternalInventoryIdentity,
+  CLAIMANT_ACTOR_ID,
   requireActor,
   requirePatchKeys,
   immediate,
@@ -48,7 +49,7 @@ export function createClaim(context: RepositoryContext, input: CreateClaimInput)
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
     const claimantActorId = requireActor(input.claimantActorId);
-    if (claimantActorId !== "claimant-demo") throw new DomainError("VALIDATION_FAILED");
+    if (claimantActorId !== CLAIMANT_ACTOR_ID) throw new DomainError("VALIDATION_FAILED");
     const report = context.database.prepare(`
       SELECT owner_actor_id AS ownerActorId, status
       FROM lost_reports WHERE demo_instance_id = ? AND id = ?

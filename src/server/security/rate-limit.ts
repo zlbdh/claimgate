@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { isDemoUserId } from "@/shared/demo-identity";
 import { DomainError } from "@/shared/domain-error";
 
 export type RateLimitInput = {
@@ -16,6 +17,7 @@ export const RATE_LIMIT_ACTIONS = Object.freeze([
   "report_archive", "claim_stage", "evidence_submit", "claim_approve", "claim_reject",
   "claim_unlock", "pickup_issue", "pickup_reissue", "handoff", "match_find",
 ] as const);
+export type RateLimitAction = (typeof RATE_LIMIT_ACTIONS)[number];
 
 export type PersistentRateLimiter = {
   consume(input: RateLimitInput): RateLimitResult;
@@ -39,8 +41,8 @@ export function createPersistentRateLimiter(options: {
       input.limit > 1_000 ||
       input.windowMs > 86_400_000 ||
       typeof input.demoInstanceId !== "string" || !input.demoInstanceId ||
-      !["claimant-demo", "staff-demo"].includes(input.actorId) ||
-      !RATE_LIMIT_ACTIONS.includes(input.action as (typeof RATE_LIMIT_ACTIONS)[number])
+      !isDemoUserId(input.actorId) ||
+      !RATE_LIMIT_ACTIONS.includes(input.action as RateLimitAction)
     ) {
       throw new DomainError("VALIDATION_FAILED");
     }
@@ -98,5 +100,9 @@ export function createPersistentRateLimiter(options: {
     };
   });
 
-  return { consume: (input) => consumeInTransaction.immediate(input) };
+  return {
+    consume: (input) => options.database.inTransaction
+      ? consumeInTransaction(input)
+      : consumeInTransaction.immediate(input),
+  };
 }

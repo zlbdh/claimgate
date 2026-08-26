@@ -7,9 +7,39 @@ import type { Keyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
 import { openDatabaseConnection } from "./connection";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const LEGACY_SCHEMA_VERSION = 1;
+const PREVIOUS_SCHEMA_VERSION = 2;
 const SCHEMA_SQL = readFileSync(join(process.cwd(), "src/server/db/schema.sql"), "utf8");
+const APPLICATION_GLOBAL_LIMITER_SQL = `
+  CREATE TABLE application_rate_limit_buckets (
+    scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
+    action TEXT NOT NULL CHECK (action = 'demo_start'),
+    window_start_ms INTEGER NOT NULL CHECK (
+      typeof(window_start_ms) = 'integer' AND window_start_ms >= 0
+      AND window_start_ms <= 9007199254740991
+    ),
+    request_count INTEGER NOT NULL CHECK (
+      typeof(request_count) = 'integer' AND request_count >= 1 AND request_count <= 1000
+    ),
+    PRIMARY KEY (scope, action, window_start_ms)
+  );
+  CREATE TABLE application_rate_limit_high_water (
+    scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
+    action TEXT NOT NULL CHECK (action = 'demo_start'),
+    high_water_time_ms INTEGER NOT NULL CHECK (
+      typeof(high_water_time_ms) = 'integer' AND high_water_time_ms >= 0
+      AND high_water_time_ms <= 9007199254740991
+    ),
+    limit_value INTEGER NOT NULL CHECK (
+      typeof(limit_value) = 'integer' AND limit_value = 30
+    ),
+    window_ms INTEGER NOT NULL CHECK (
+      typeof(window_ms) = 'integer' AND window_ms = 60000
+    ),
+    PRIMARY KEY (scope, action)
+  );
+`;
 
 type MetadataRow = {
   schemaVersion: number;
@@ -86,6 +116,8 @@ function assertForeignKeysClean(database: Database.Database): void {
 function dropDisposableBusinessSchema(database: Database.Database): void {
   database.exec(`
     DROP TABLE IF EXISTS consumed_action_nonces;
+    DROP TABLE IF EXISTS application_rate_limit_high_water;
+    DROP TABLE IF EXISTS application_rate_limit_buckets;
     DROP TABLE IF EXISTS rate_limit_high_water;
     DROP TABLE IF EXISTS rate_limit_buckets;
     DROP TABLE IF EXISTS idempotency_records;
@@ -98,7 +130,7 @@ function dropDisposableBusinessSchema(database: Database.Database): void {
   `);
 }
 
-function migrateV1ToV2(
+function migrateV1ToV3(
   database: Database.Database,
   keyring: Keyring,
   metadata: MetadataRow,
@@ -127,6 +159,27 @@ function migrateV1ToV2(
   database.exec("DROP TABLE database_metadata_v1");
 }
 
+function migrateV2ToV3(
+  database: Database.Database,
+  keyring: Keyring,
+  metadata: MetadataRow,
+): void {
+  verifyMetadata(metadata, keyring, PREVIOUS_SCHEMA_VERSION);
+  database.exec(APPLICATION_GLOBAL_LIMITER_SQL);
+  assertForeignKeysClean(database);
+  const authenticator = makeAuthenticator(
+    keyring,
+    SCHEMA_VERSION,
+    metadata.databaseUuid,
+    metadata.keyCheckSalt,
+  );
+  database.prepare(`
+    UPDATE database_metadata
+    SET schema_version = ?, key_check_authenticator = ?
+    WHERE singleton_id = 1 AND schema_version = ?
+  `).run(SCHEMA_VERSION, authenticator, PREVIOUS_SCHEMA_VERSION);
+}
+
 function migrateDatabase(
   database: Database.Database,
   keyring: Keyring,
@@ -136,7 +189,11 @@ function migrateDatabase(
     const existing = readMetadata(database);
     if (existing) {
       if (existing.schemaVersion === LEGACY_SCHEMA_VERSION) {
-        migrateV1ToV2(database, keyring, existing);
+        migrateV1ToV3(database, keyring, existing);
+        return;
+      }
+      if (existing.schemaVersion === PREVIOUS_SCHEMA_VERSION) {
+        migrateV2ToV3(database, keyring, existing);
         return;
       }
       verifyMetadata(existing, keyring, SCHEMA_VERSION);

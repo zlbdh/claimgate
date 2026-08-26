@@ -11,6 +11,7 @@ import { appendReportAudit } from "./audit-repository";
 import {
   activeInstance,
   assertNoInternalInventoryIdentity,
+  CLAIMANT_ACTOR_ID,
   immediate,
   parseStringArray,
   requireActor,
@@ -91,7 +92,7 @@ export function createLostReport(
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
     const ownerActorId = requireActor(input.ownerActorId);
-    if (ownerActorId !== "claimant-demo") throw new DomainError("VALIDATION_FAILED");
+    if (ownerActorId !== CLAIMANT_ACTOR_ID) throw new DomainError("VALIDATION_FAILED");
     validatePublicTags(input.publicTags, "VALIDATION_FAILED");
     assertNoInternalInventoryIdentity(context, input, "VALIDATION_FAILED");
     const reportId = context.randomId();

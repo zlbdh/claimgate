@@ -76,7 +76,7 @@ function createV1Database(injectMigrationFailure = false) {
   return { databasePath, databaseUuid, salt };
 }
 
-describe("数据库 schema v1 到 v2 升级", () => {
+describe("数据库 schema v1 到 v3 升级", () => {
   it("验证 v1 密钥后原子重建业务表，保留数据库身份并失效旧 demo", () => {
     const legacy = createV1Database();
     const database = initializeDatabase({
@@ -88,7 +88,7 @@ describe("数据库 schema v1 到 v2 升级", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 2, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 3, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     expect(database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get()).toEqual({ count: 0 });
     const auditColumns = database.pragma("table_info(audit_events)") as Array<{ name: string }>;

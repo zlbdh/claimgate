@@ -1,0 +1,71 @@
+.start-demo,
+.demo-role-bar {
+  margin-top: 34px;
+  padding: 24px;
+  border: 1px solid var(--ink);
+  background: var(--paper-bright);
+}
+
+.start-demo h2 {
+  margin: 0;
+  font: 500 clamp(28px, 4vw, 44px)/1.1 Georgia, serif;
+}
+
+.start-demo > p:not(.eyebrow) {
+  color: var(--ink-soft);
+}
+
+.start-demo-form {
+  margin-top: 20px;
+}
+
+.start-demo-form button,
+.demo-role-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper-bright);
+  font: 700 14px/1 "Aptos", "Segoe UI", sans-serif;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.start-demo-form button:hover,
+.demo-role-bar button:hover {
+  background: var(--paper-bright);
+  color: var(--ink);
+}
+
+.demo-role-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.demo-role-status {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-soft);
+  font: 13px/1.45 ui-monospace, "Cascadia Mono", monospace;
+}
+
+.demo-role-status strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+@media (max-width: 700px) {
+  .demo-role-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .demo-role-bar button,
+  .start-demo-form button {
+    width: 100%;
+  }
+}

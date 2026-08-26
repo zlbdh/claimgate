@@ -1,4 +1,5 @@
 import type { AuditEvent, RepositoryContext } from "./repository-types";
+import { DEMO_IDENTITIES, type DemoUserId } from "@/shared/demo-identity";
 import { assertNoInternalInventoryIdentity, requireActor } from "./repository-internal";
 
 type AuditAction = AuditEvent["action"];
@@ -39,7 +40,7 @@ export function appendInstanceAudit(
   context: RepositoryContext,
   demoInstanceId: string,
   action: "DEMO_CREATED" | "INVENTORY_UPDATED",
-  actorId: "system" | "staff-demo",
+  actorId: "system" | typeof DEMO_IDENTITIES.STAFF.userId,
 ): void {
   appendAuditEvent(context, demoInstanceId, {
     resourceType: "INSTANCE", reportId: null, claimId: null,
@@ -52,7 +53,7 @@ export function appendReportAudit(
   demoInstanceId: string,
   reportId: string,
   action: "REPORT_CREATED" | "REPORT_UPDATED",
-  actorId: "claimant-demo" | "staff-demo",
+  actorId: DemoUserId,
 ): void {
   appendAuditEvent(context, demoInstanceId, {
     resourceType: "REPORT", reportId, claimId: null,
@@ -65,7 +66,7 @@ export function appendClaimAudit(
   demoInstanceId: string,
   claimId: string,
   action: "CLAIM_CREATED" | "CLAIM_UPDATED",
-  actorId: "claimant-demo" | "staff-demo",
+  actorId: DemoUserId,
 ): void {
   appendAuditEvent(context, demoInstanceId, {
     resourceType: "CLAIM", reportId: null, claimId,

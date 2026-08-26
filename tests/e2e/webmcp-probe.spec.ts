@@ -14,6 +14,7 @@ test("keeps manual use interactive under the production nonce CSP", async ({
 }) => {
   const response = await page.goto("/webmcp-probe");
   const csp = response?.headers()["content-security-policy"] ?? "";
+  expect(response?.headers()["referrer-policy"]).toBe("same-origin");
 
   expect(csp).toMatch(
     /script-src 'self' 'nonce-[^']+' 'strict-dynamic'/,

@@ -312,32 +312,3 @@ CREATE TABLE IF NOT EXISTS consumed_action_nonces (
 
 CREATE INDEX IF NOT EXISTS consumed_action_nonces_instance_idx
   ON consumed_action_nonces(demo_instance_id);
-
-CREATE TABLE IF NOT EXISTS application_rate_limit_buckets (
-  scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
-  action TEXT NOT NULL CHECK (action = 'demo_start'),
-  window_start_ms INTEGER NOT NULL CHECK (
-    typeof(window_start_ms) = 'integer' AND window_start_ms >= 0
-    AND window_start_ms <= 9007199254740991
-  ),
-  request_count INTEGER NOT NULL CHECK (
-    typeof(request_count) = 'integer' AND request_count >= 1 AND request_count <= 1000
-  ),
-  PRIMARY KEY (scope, action, window_start_ms)
-);
-
-CREATE TABLE IF NOT EXISTS application_rate_limit_high_water (
-  scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
-  action TEXT NOT NULL CHECK (action = 'demo_start'),
-  high_water_time_ms INTEGER NOT NULL CHECK (
-    typeof(high_water_time_ms) = 'integer' AND high_water_time_ms >= 0
-    AND high_water_time_ms <= 9007199254740991
-  ),
-  limit_value INTEGER NOT NULL CHECK (
-    typeof(limit_value) = 'integer' AND limit_value = 30
-  ),
-  window_ms INTEGER NOT NULL CHECK (
-    typeof(window_ms) = 'integer' AND window_ms = 60000
-  ),
-  PRIMARY KEY (scope, action)
-);

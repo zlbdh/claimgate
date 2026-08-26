@@ -1,5 +1,9 @@
 import { ArrowRight, LockKeyhole, ScanSearch } from "lucide-react";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { DemoRoleBar } from "@/components/demo-role-bar";
+import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
+import { readHomeSession } from "@/server/http/home-session";
 
 const principles = [
   {
@@ -16,9 +20,29 @@ const principles = [
   },
 ];
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const cookieStore = await cookies();
+  const authenticated = readHomeSession(cookieStore.get(DEMO_SESSION_COOKIE)?.value);
   return (
     <main>
+      {authenticated ? (
+        <DemoRoleBar
+          role={authenticated.session.role}
+          expiresAt={authenticated.session.expiresAt}
+          csrfToken={authenticated.csrfToken}
+        />
+      ) : (
+        <section className="start-demo" aria-labelledby="start-demo-title">
+          <p className="eyebrow">Two-hour isolated public demo</p>
+          <h2 id="start-demo-title">Start with a fresh Claimant workspace.</h2>
+          <p>Each session receives a separate demo inventory and expires automatically.</p>
+          <form className="start-demo-form" action="/api/demo/start" method="post">
+            <button type="submit">Start public demo</button>
+          </form>
+        </section>
+      )}
       <section className="hero" aria-labelledby="home-title">
         <p className="eyebrow">Lost property · privacy-first claims</p>
         <h1 id="home-title">Find the match without giving away the answer.</h1>

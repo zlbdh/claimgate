@@ -125,6 +125,12 @@ export type IdempotencyRequest = {
   requestFingerprint: string;
 };
 
+export type ConsumeActionNonceInput = {
+  demoInstanceId: string;
+  action: string;
+  nonceDigest: Buffer;
+};
+
 export type IdempotencyResult =
   | {
     kind: "report_ack";

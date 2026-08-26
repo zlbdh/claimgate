@@ -3,6 +3,7 @@ import { DomainError } from "@/shared/domain-error";
 import type {
   AuditEvent,
   ClaimRecord,
+  ConsumeActionNonceInput,
   CreateClaimInput,
   CreateLostReportInput,
   DemoInstance,
@@ -19,6 +20,7 @@ import type {
   UpdateFoundItemInput,
   UpdateLostReportInput,
 } from "./repository-types";
+import { consumeActionNonce as consumeNonce } from "./action-nonce-repository";
 import { listAuditEvents as readAuditEvents } from "./audit-repository";
 import {
   createDemoInstance as createInstance,
@@ -56,6 +58,7 @@ export type ClaimGateRepository = {
   updateClaim(input: UpdateClaimInput): ClaimRecord;
   listAuditEvents(demoInstanceId: string): AuditEvent[];
   runIdempotent(request: IdempotencyRequest, mutation: () => IdempotencyResult): IdempotencyResult;
+  consumeActionNonce(input: ConsumeActionNonceInput): void;
   withTransaction<T>(operation: (
     repository: ClaimGateRepository,
   ) => T extends PromiseLike<unknown> ? never : T): T;
@@ -91,6 +94,7 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
       assertActive();
       return executeIdempotent(context, request, mutation);
     },
+    consumeActionNonce: (input) => { assertActive(); consumeNonce(context, input); },
     withTransaction: (operation) => {
       assertActive();
       rejectAsyncCallback(operation);
