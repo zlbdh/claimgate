@@ -76,15 +76,14 @@ export function rejectAsyncCallback(callback: (...args: never[]) => unknown): vo
   }
 }
 
-export function assertNoInternalInventoryId(
+export function assertNoInternalInventoryIdentity(
   context: RepositoryContext,
-  demoInstanceId: string,
   value: unknown,
   code: DomainErrorCode,
 ): void {
   const internalIds = (context.database.prepare(
-    "SELECT id FROM found_items WHERE demo_instance_id = ?",
-  ).all(demoInstanceId) as Array<{ id: string }>).map(({ id }) => id);
+    "SELECT id FROM found_items",
+  ).all() as Array<{ id: string }>).map(({ id }) => id);
   const seen = new Set<object>();
   const inspect = (entry: unknown): void => {
     if (typeof entry === "string") {

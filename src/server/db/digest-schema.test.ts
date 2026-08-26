@@ -62,6 +62,10 @@ describe("digest-only SQLite 约束", () => {
     const valid = Buffer.alloc(32, 2);
     expect(() => update.run(valid, valid, BigInt("1800000000000"), 1, instance.demoInstanceId, claim.claimId))
       .not.toThrow();
+    expect(database.prepare(`
+      SELECT typeof(pass_generation) AS generationType FROM claims
+      WHERE demo_instance_id = ? AND id = ?
+    `).get(instance.demoInstanceId, claim.claimId)).toEqual({ generationType: "integer" });
     database.prepare(`
       UPDATE claims SET pickup_pass_salt=NULL, pickup_pass_digest=NULL,
         pickup_pass_expires_at_ms=NULL, pass_generation=0
@@ -72,7 +76,12 @@ describe("digest-only SQLite 约束", () => {
       [valid, valid, "1800000000000", 1],
       [valid, valid, -1, 1],
       [valid, valid, 1_800_000_000_000, 0],
+      [valid, valid, BigInt("1800000000000"), "abc"],
+      [valid, valid, BigInt("1800000000000"), 1.5],
+      [valid, valid, BigInt("1800000000000"), -1],
+      [valid, valid, BigInt("1800000000000"), BigInt("9007199254740992")],
       [null, null, null, 1],
+      [null, null, null, "abc"],
     ]) {
       expect(() => update.run(...values, instance.demoInstanceId, claim.claimId)).toThrow();
     }

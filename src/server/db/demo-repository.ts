@@ -1,6 +1,6 @@
 import type { PublicInventoryItem, DemoInstance, RepositoryContext } from "./repository-types";
 import { NORTHBRIDGE_FOUND_ITEM_SEEDS } from "./seed";
-import { activeInstance, assertNoInternalInventoryId, immediate, parseStringArray, requireInteger } from "./repository-internal";
+import { activeInstance, assertNoInternalInventoryIdentity, immediate, parseStringArray, requireInteger } from "./repository-internal";
 import { appendInstanceAudit } from "./audit-repository";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1_000;
@@ -65,7 +65,7 @@ export function listPublicInventory(
   `).all(demoInstanceId) as Array<Omit<PublicInventoryItem, "publicTags"> & { publicTagsJson: string }>;
   return rows.map(({ publicTagsJson, ...row }) => {
     const result = { ...row, publicTags: parseStringArray(publicTagsJson) };
-    assertNoInternalInventoryId(context, demoInstanceId, result, "CONFIGURATION_ERROR");
+    assertNoInternalInventoryIdentity(context, result, "CONFIGURATION_ERROR");
     return result;
   });
 }

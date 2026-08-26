@@ -12,7 +12,7 @@ export type RateLimitInput = {
 export type RateLimitResult = { allowed: boolean; retryAfterMs: number };
 
 export const RATE_LIMIT_ACTIONS = Object.freeze([
-  "demo_start", "role_switch", "draft_create", "draft_update", "report_publish",
+  "role_switch", "draft_create", "draft_update", "report_publish",
   "report_archive", "claim_stage", "evidence_submit", "claim_approve", "claim_reject",
   "claim_unlock", "pickup_issue", "pickup_reissue", "handoff", "match_find",
 ] as const);

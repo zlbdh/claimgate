@@ -10,7 +10,7 @@ import { assertReportTransition } from "@/features/claims/claim-state";
 import { appendReportAudit } from "./audit-repository";
 import {
   activeInstance,
-  assertNoInternalInventoryId,
+  assertNoInternalInventoryIdentity,
   immediate,
   parseStringArray,
   requireActor,
@@ -54,7 +54,7 @@ function toPublicRecord(
   row: ReportRow,
 ): LostReportRecord {
   const record = toRecord(row);
-  assertNoInternalInventoryId(context, demoInstanceId, record, "CONFIGURATION_ERROR");
+  assertNoInternalInventoryIdentity(context, record, "CONFIGURATION_ERROR");
   return record;
 }
 
@@ -93,7 +93,7 @@ export function createLostReport(
     const ownerActorId = requireActor(input.ownerActorId);
     if (ownerActorId !== "claimant-demo") throw new DomainError("VALIDATION_FAILED");
     validatePublicTags(input.publicTags, "VALIDATION_FAILED");
-    assertNoInternalInventoryId(context, input.demoInstanceId, input, "VALIDATION_FAILED");
+    assertNoInternalInventoryIdentity(context, input, "VALIDATION_FAILED");
     const reportId = context.randomId();
     context.database.prepare(`
       INSERT INTO lost_reports (
@@ -128,7 +128,7 @@ export function updateLostReport(
     if (input.patch.publicTags !== undefined) {
       validatePublicTags(input.patch.publicTags, "VALIDATION_FAILED");
     }
-    assertNoInternalInventoryId(context, input.demoInstanceId, input.patch, "VALIDATION_FAILED");
+    assertNoInternalInventoryIdentity(context, input.patch, "VALIDATION_FAILED");
     const row = context.database.prepare(`${REPORT_SELECT} WHERE demo_instance_id = ? AND id = ?`)
       .get(input.demoInstanceId, input.reportId) as ReportRow | undefined;
     if (!row || row.version !== input.expectedVersion) stateChanged();
@@ -167,7 +167,17 @@ function transitionLostReport(
     const row = context.database.prepare(`${REPORT_SELECT} WHERE demo_instance_id = ? AND id = ?`)
       .get(input.demoInstanceId, input.reportId) as ReportRow | undefined;
     if (!row || row.version !== input.expectedVersion) stateChanged();
+    if (actorId !== row.ownerActorId) throw new DomainError("FORBIDDEN");
     assertReportTransition(row.status, targetStatus);
+    if (targetStatus === "ARCHIVED") {
+      const activeClaim = context.database.prepare(`
+        SELECT 1 FROM claims
+        WHERE demo_instance_id = ? AND report_id = ?
+          AND status NOT IN ('REJECTED', 'COLLECTED')
+        LIMIT 1
+      `).get(input.demoInstanceId, input.reportId);
+      if (activeClaim) throw new DomainError("INVALID_STATE_TRANSITION");
+    }
     const result = context.database.prepare(`
       UPDATE lost_reports SET status = ?, version = version + 1
       WHERE demo_instance_id = ? AND id = ? AND version = ?

@@ -33,7 +33,7 @@ export function verifyConfiguredDatabaseKey(database, masterKey) {
     FROM database_metadata WHERE singleton_id = 1
   `).get();
   if (
-    metadata?.schemaVersion !== 1
+    metadata?.schemaVersion !== 2
     || typeof metadata.databaseUuid !== "string"
     || !Buffer.isBuffer(metadata.keyCheckSalt)
     || metadata.keyCheckSalt.length !== KEY_LENGTH_BYTES

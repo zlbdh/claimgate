@@ -83,4 +83,64 @@ describe("审计复合关系与闭合形状", () => {
       .toBe(instance.demoInstanceId);
     expect(JSON.stringify(events)).not.toContain(internalId);
   });
+
+  it("actor 先存在时，数据库拒绝同实例/跨实例 INSERT 或 UPDATE 成同名库存 ID", () => {
+    testDatabase = createTestDatabase();
+    const { repository, database } = testDatabase;
+    const first = repository.createDemoInstance();
+    const second = repository.createDemoInstance();
+    const report = repository.createLostReport(reportInput(first.demoInstanceId));
+    const secondItems = repository.listServerInternalFoundItems(second.demoInstanceId);
+    repository.updateFoundItem({
+      demoInstanceId: second.demoInstanceId,
+      inventoryItemId: secondItems[0]!.inventoryItemId,
+      expectedVersion: secondItems[0]!.version,
+      actorId: "staff-demo",
+      patch: { color: "navy" },
+    });
+    const insertItem = database.prepare(`
+      INSERT INTO found_items (
+        demo_instance_id, id, category, found_at, area, color,
+        public_tags_json, public_description, status, version
+      ) VALUES (?, ?, 'earbuds', '2026-08-25', 'library', 'black',
+        '["wireless"]', 'safe', 'AVAILABLE', 1)
+    `);
+
+    expect(() => insertItem.run(first.demoInstanceId, "system")).toThrow();
+    expect(() => insertItem.run(second.demoInstanceId, "claimant-demo")).toThrow();
+    expect(() => database.prepare(`
+      UPDATE found_items SET id = 'staff-demo'
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(second.demoInstanceId, secondItems[1]!.inventoryItemId)).toThrow();
+    expect(repository.getLostReport(first.demoInstanceId, report.reportId)).toBeDefined();
+  });
+
+  it("库存 ID 先存在时，数据库拒绝跨实例 INSERT/UPDATE 成同名 audit actor", () => {
+    testDatabase = createTestDatabase();
+    const { repository, database } = testDatabase;
+    const normal = repository.createDemoInstance();
+    database.prepare(`
+      INSERT INTO demo_instances (id, created_at_ms, expires_at_ms, catalog_version)
+      VALUES ('manual-instance', 1, 9999999999999, 1)
+    `).run();
+    database.prepare(`
+      INSERT INTO found_items (
+        demo_instance_id, id, category, found_at, area, color,
+        public_tags_json, public_description, status, version
+      ) VALUES ('manual-instance', 'claimant-demo', 'earbuds', '2026-08-25',
+        'library', 'black', '["wireless"]', 'safe', 'AVAILABLE', 1)
+    `).run();
+
+    expect(() => database.prepare(`
+      UPDATE audit_events SET actor_id = 'claimant-demo'
+      WHERE demo_instance_id = ? AND action = 'DEMO_CREATED'
+    `).run(normal.demoInstanceId)).toThrow();
+    expect(() => database.prepare(`
+      INSERT INTO audit_events (
+        demo_instance_id, id, resource_type, report_id, claim_id,
+        action, actor_id, result, occurred_at_ms
+      ) VALUES (?, 'cross-actor', 'INSTANCE', NULL, NULL,
+        'INVENTORY_UPDATED', 'claimant-demo', 'SUCCEEDED', 2)
+    `).run(normal.demoInstanceId)).toThrow();
+  });
 });

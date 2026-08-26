@@ -8,7 +8,7 @@ import { DomainError } from "@/shared/domain-error";
 import { appendInstanceAudit } from "./audit-repository";
 import {
   activeInstance,
-  assertNoInternalInventoryId,
+  assertNoInternalInventoryIdentity,
   immediate,
   parseStringArray,
   requireActor,
@@ -31,7 +31,7 @@ function toSafeInternalRecord(
 ): ServerInternalFoundItem {
   const record = toRecord(row);
   const { inventoryItemId, ...publicFields } = record;
-  assertNoInternalInventoryId(context, demoInstanceId, publicFields, "CONFIGURATION_ERROR");
+  assertNoInternalInventoryIdentity(context, publicFields, "CONFIGURATION_ERROR");
   return { inventoryItemId, ...publicFields };
 }
 
@@ -72,7 +72,7 @@ export function updateFoundItem(
     if (input.patch.publicTags !== undefined) {
       validatePublicTags(input.patch.publicTags, "VALIDATION_FAILED");
     }
-    assertNoInternalInventoryId(context, input.demoInstanceId, input.patch, "VALIDATION_FAILED");
+    assertNoInternalInventoryIdentity(context, input.patch, "VALIDATION_FAILED");
     const existing = getItem(context, input.demoInstanceId, input.inventoryItemId);
     if (!existing || existing.version !== input.expectedVersion) stateChanged();
     const next = { ...existing, ...input.patch };

@@ -9,7 +9,7 @@ import type {
 import { appendClaimAudit } from "./audit-repository";
 import {
   activeInstance,
-  assertNoInternalInventoryId,
+  assertNoInternalInventoryIdentity,
   requireActor,
   requirePatchKeys,
   immediate,
@@ -35,7 +35,7 @@ function getClaim(context: RepositoryContext, demoInstanceId: string, claimId: s
     .get(demoInstanceId, claimId) as ClaimRow | undefined;
   if (!row) throw new DomainError("NOT_FOUND");
   const record = toRecord(row);
-  assertNoInternalInventoryId(context, demoInstanceId, record, "CONFIGURATION_ERROR");
+  assertNoInternalInventoryIdentity(context, record, "CONFIGURATION_ERROR");
   return record;
 }
 
@@ -87,14 +87,12 @@ export function updateClaim(context: RepositoryContext, input: UpdateClaimInput)
     }
     const result = context.database.prepare(`
       UPDATE claims SET status = ?, attempts = ?, evidence_eligible = ?,
-        reviewer_actor_id = ?, pass_generation = ?, version = version + 1
+        version = version + 1
       WHERE demo_instance_id = ? AND id = ? AND version = ?
     `).run(
       next.status,
       next.attempts,
       next.evidenceEligible ? 1 : 0,
-      next.reviewerActorId,
-      next.passGeneration,
       input.demoInstanceId,
       input.claimId,
       input.expectedVersion,

@@ -60,3 +60,9 @@
 - 新测试先 RED：非法 code 未拒绝，错误/状态表/用途集合均未冻结；全图测试随后明确验证现有合法边。
 - 首次 GREEN 因冻结封装替换漏掉闭合括号而报 TypeScript 语法错误，修正后目标 85 项测试与 typecheck 通过。
 - 完整 `npm run verify` 通过：文件行数、lint、typecheck、6 个文件 101 项测试和生产构建均成功。
+
+## 2026-08-26 [Task 4 review fix round 2：数据库 v2 迁移决策]
+
+- schema 版本提升到 v2。打开 v1 文件时，必须先用 v1 metadata authenticator 验证配置密钥，再在同一 `BEGIN IMMEDIATE` 内升级。
+- ClaimGate 尚未部署，业务数据仅为可丢弃的两小时 demo；v1→v2 因此按依赖顺序删除并重建所有业务表，不复制旧 demo 行。迁移保留数据库 UUID 与 key-check salt，完成 v2 schema 和 `foreign_key_check` 后才写入 v2 authenticator。
+- 任一步骤失败会回滚全部 DDL、业务行和 metadata；错误密钥、未知版本或不完整 schema 均失败关闭，不自动接管数据库。

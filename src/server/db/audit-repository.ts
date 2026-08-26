@@ -1,5 +1,5 @@
 import type { AuditEvent, RepositoryContext } from "./repository-types";
-import { assertNoInternalInventoryId, requireActor } from "./repository-internal";
+import { assertNoInternalInventoryIdentity, requireActor } from "./repository-internal";
 
 type AuditAction = AuditEvent["action"];
 
@@ -16,7 +16,7 @@ function appendAuditEvent(
   },
 ): void {
   requireActor(event.actorId, true);
-  assertNoInternalInventoryId(context, demoInstanceId, event, "VALIDATION_FAILED");
+  assertNoInternalInventoryIdentity(context, event, "VALIDATION_FAILED");
   context.database.prepare(`
     INSERT INTO audit_events (
       demo_instance_id, id, resource_type, report_id, claim_id,
@@ -83,6 +83,6 @@ export function listAuditEvents(context: RepositoryContext, demoInstanceId: stri
     FROM audit_events WHERE demo_instance_id = ?
     ORDER BY occurred_at_ms, id
   `).all(demoInstanceId) as AuditEvent[];
-  assertNoInternalInventoryId(context, demoInstanceId, events, "CONFIGURATION_ERROR");
+  assertNoInternalInventoryIdentity(context, events, "CONFIGURATION_ERROR");
   return events;
 }

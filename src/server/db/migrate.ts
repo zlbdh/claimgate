@@ -7,7 +7,8 @@ import type { Keyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
 import { openDatabaseConnection } from "./connection";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const LEGACY_SCHEMA_VERSION = 1;
 const SCHEMA_SQL = readFileSync(join(process.cwd(), "src/server/db/schema.sql"), "utf8");
 
 type MetadataRow = {
@@ -49,10 +50,14 @@ function makeAuthenticator(keyring: Keyring, version: number, databaseUuid: stri
     .digest();
 }
 
-function verifyMetadata(metadata: MetadataRow | undefined, keyring: Keyring): void {
+function verifyMetadata(
+  metadata: MetadataRow | undefined,
+  keyring: Keyring,
+  expectedVersion: number,
+): asserts metadata is MetadataRow {
   if (
     !metadata ||
-    metadata.schemaVersion !== SCHEMA_VERSION ||
+    metadata.schemaVersion !== expectedVersion ||
     typeof metadata.databaseUuid !== "string" ||
     !Buffer.isBuffer(metadata.keyCheckSalt) ||
     metadata.keyCheckSalt.length !== 32 ||
@@ -72,19 +77,75 @@ function verifyMetadata(metadata: MetadataRow | undefined, keyring: Keyring): vo
   }
 }
 
+function assertForeignKeysClean(database: Database.Database): void {
+  if ((database.pragma("foreign_key_check") as unknown[]).length !== 0) {
+    throw new DomainError("CONFIGURATION_ERROR");
+  }
+}
+
+function dropDisposableBusinessSchema(database: Database.Database): void {
+  database.exec(`
+    DROP TABLE IF EXISTS consumed_action_nonces;
+    DROP TABLE IF EXISTS rate_limit_high_water;
+    DROP TABLE IF EXISTS rate_limit_buckets;
+    DROP TABLE IF EXISTS idempotency_records;
+    DROP TABLE IF EXISTS audit_events;
+    DROP TABLE IF EXISTS claims;
+    DROP TABLE IF EXISTS lost_reports;
+    DROP TABLE IF EXISTS item_evidence_slots;
+    DROP TABLE IF EXISTS found_items;
+    DROP TABLE IF EXISTS demo_instances;
+  `);
+}
+
+function migrateV1ToV2(
+  database: Database.Database,
+  keyring: Keyring,
+  metadata: MetadataRow,
+): void {
+  verifyMetadata(metadata, keyring, LEGACY_SCHEMA_VERSION);
+  dropDisposableBusinessSchema(database);
+  database.exec("ALTER TABLE database_metadata RENAME TO database_metadata_v1");
+  database.exec(SCHEMA_SQL);
+  assertForeignKeysClean(database);
+  const authenticator = makeAuthenticator(
+    keyring,
+    SCHEMA_VERSION,
+    metadata.databaseUuid,
+    metadata.keyCheckSalt,
+  );
+  database.prepare(`
+    INSERT INTO database_metadata (
+      singleton_id, schema_version, database_uuid, key_check_salt, key_check_authenticator
+    ) VALUES (1, ?, ?, ?, ?)
+  `).run(
+    SCHEMA_VERSION,
+    metadata.databaseUuid,
+    metadata.keyCheckSalt,
+    authenticator,
+  );
+  database.exec("DROP TABLE database_metadata_v1");
+}
+
 function migrateDatabase(
   database: Database.Database,
   keyring: Keyring,
   allowCreateMetadata: boolean,
 ): void {
   database.transaction(() => {
-    database.exec(SCHEMA_SQL);
     const existing = readMetadata(database);
     if (existing) {
-      verifyMetadata(existing, keyring);
+      if (existing.schemaVersion === LEGACY_SCHEMA_VERSION) {
+        migrateV1ToV2(database, keyring, existing);
+        return;
+      }
+      verifyMetadata(existing, keyring, SCHEMA_VERSION);
+      database.exec(SCHEMA_SQL);
+      assertForeignKeysClean(database);
       return;
     }
     if (!allowCreateMetadata) throw new DomainError("CONFIGURATION_ERROR");
+    database.exec(SCHEMA_SQL);
     const databaseUuid = randomUUID();
     const salt = randomBytes(32);
     const authenticator = makeAuthenticator(keyring, SCHEMA_VERSION, databaseUuid, salt);
@@ -93,6 +154,7 @@ function migrateDatabase(
         singleton_id, schema_version, database_uuid, key_check_salt, key_check_authenticator
       ) VALUES (1, ?, ?, ?, ?)
     `).run(SCHEMA_VERSION, databaseUuid, salt, authenticator);
+    assertForeignKeysClean(database);
   }).immediate();
 }
 
@@ -130,9 +192,7 @@ export function initializeDatabase(options: {
   try {
     database = openDatabaseConnection(options.databasePath);
     migrateDatabase(database, options.keyring, ownsInitializationLock);
-    if ((database.pragma("foreign_key_check") as unknown[]).length !== 0) {
-      throw new DomainError("CONFIGURATION_ERROR");
-    }
+    assertForeignKeysClean(database);
     return database;
   } catch (error) {
     database?.close();

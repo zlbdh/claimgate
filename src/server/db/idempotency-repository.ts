@@ -3,7 +3,7 @@ import { DomainError } from "@/shared/domain-error";
 import type { IdempotencyRequest, IdempotencyResult, RepositoryContext } from "./repository-types";
 import {
   activeInstance,
-  assertNoInternalInventoryId,
+  assertNoInternalInventoryIdentity,
   immediate,
   rejectAsyncCallback,
   rejectPromise,
@@ -67,21 +67,52 @@ function validateResult(
   return value as IdempotencyResult;
 }
 
-function canonicalResultJson(
+function canonicalResult(
   context: RepositoryContext,
   request: IdempotencyRequest,
   value: unknown,
-): string {
-  const validated = validateResult(request, value, "VALIDATION_FAILED");
-  assertNoInternalInventoryId(
+  errorCode: "VALIDATION_FAILED" | "CONFIGURATION_ERROR",
+): { result: IdempotencyResult; resultJson: string } {
+  const validated = validateResult(request, value, errorCode);
+  const canonical = Object.create(null) as Record<string, unknown>;
+  if (validated.kind === "report_ack") {
+    canonical.kind = "report_ack";
+    canonical.reportId = validated.reportId;
+    canonical.status = "DRAFT";
+    canonical.version = validated.version;
+  } else {
+    canonical.kind = "claim_ack";
+    canonical.claimId = validated.claimId;
+    canonical.status = "EVIDENCE_REQUIRED";
+    canonical.version = validated.version;
+  }
+  const resultJson = JSON.stringify(canonical);
+  if (resultJson.length > 1_024) throw new DomainError(errorCode);
+  const parsed = validateResult(request, JSON.parse(resultJson) as unknown, errorCode);
+  assertNoInternalInventoryIdentity(
     context,
-    request.demoInstanceId,
-    validated,
-    "VALIDATION_FAILED",
+    parsed,
+    errorCode,
   );
-  const resultJson = JSON.stringify(validated);
-  if (resultJson.length > 1_024) throw new DomainError("VALIDATION_FAILED");
-  return resultJson;
+  const result: Record<string, unknown> = {};
+  if (parsed.kind === "report_ack") {
+    result.kind = "report_ack";
+    result.reportId = parsed.reportId;
+    result.status = "DRAFT";
+    result.version = parsed.version;
+  } else {
+    result.kind = "claim_ack";
+    result.claimId = parsed.claimId;
+    result.status = "EVIDENCE_REQUIRED";
+    result.version = parsed.version;
+  }
+  const protectedResult = new Proxy(result, {
+    get(target, property, receiver) {
+      if (property === "toJSON") return undefined;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  return { result: protectedResult as IdempotencyResult, resultJson };
 }
 
 export function runIdempotent(
@@ -96,7 +127,7 @@ export function runIdempotent(
     if (!IDEMPOTENCY_ACTIONS.includes(request.action)) {
       throw new DomainError("VALIDATION_FAILED");
     }
-    assertNoInternalInventoryId(context, request.demoInstanceId, request, "VALIDATION_FAILED");
+    assertNoInternalInventoryIdentity(context, request, "VALIDATION_FAILED");
     const keyDigest = digest("ClaimGate/idempotency-key/v1", request.idempotencyKey);
     const fingerprintDigest = digest(
       "ClaimGate/request-fingerprint/v1",
@@ -122,19 +153,16 @@ export function runIdempotent(
       } catch {
         throw new DomainError("CONFIGURATION_ERROR");
       }
-      const validated = validateResult(request, parsed, "CONFIGURATION_ERROR");
-      assertNoInternalInventoryId(
-        context,
-        request.demoInstanceId,
-        validated,
-        "CONFIGURATION_ERROR",
-      );
-      return validated;
+      const canonical = canonicalResult(context, request, parsed, "CONFIGURATION_ERROR");
+      if (canonical.resultJson !== existing.resultJson) {
+        throw new DomainError("CONFIGURATION_ERROR");
+      }
+      return canonical.result;
     }
 
     const result = mutation();
     rejectPromise(result);
-    const resultJson = canonicalResultJson(context, request, result);
+    const canonical = canonicalResult(context, request, result, "VALIDATION_FAILED");
     context.database.prepare(`
       INSERT INTO idempotency_records (
         demo_instance_id, actor_id, action, key_digest,
@@ -146,9 +174,9 @@ export function runIdempotent(
       request.action,
       keyDigest,
       fingerprintDigest,
-      resultJson,
+      canonical.resultJson,
       context.now(),
     );
-    return JSON.parse(resultJson) as IdempotencyResult;
+    return canonical.result;
   });
 }
