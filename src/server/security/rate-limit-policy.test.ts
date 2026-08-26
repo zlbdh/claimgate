@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RATE_LIMIT_ACTIONS } from "./rate-limit";
+import { AUTHENTICATED_ROUTE_REGISTRY } from "@/server/http/authenticated-route-registry";
 import {
   ALL_RATE_LIMIT_POLICIES,
   INSTANCE_RATE_LIMIT_POLICIES,
@@ -32,5 +33,26 @@ describe("冻结的完整限流策略矩阵", () => {
     });
     expect(Object.isFrozen(INSTANCE_RATE_LIMIT_POLICIES)).toBe(true);
     expect(Object.isFrozen(ALL_RATE_LIMIT_POLICIES)).toBe(true);
+    for (const policy of Object.values(ALL_RATE_LIMIT_POLICIES)) {
+      expect(Object.isFrozen(policy)).toBe(true);
+    }
+  });
+
+  it("authenticated route registry 闭合 method/path/action/roles/one-time/policy", () => {
+    expect(AUTHENTICATED_ROUTE_REGISTRY).toEqual({
+      "api.demo.switch-role": {
+        method: "POST",
+        path: "/api/demo/switch-role",
+        action: "role_switch",
+        allowedRoles: ["CLAIMANT", "STAFF"],
+        requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
+      },
+    });
+    expect(Object.isFrozen(AUTHENTICATED_ROUTE_REGISTRY)).toBe(true);
+    const route = AUTHENTICATED_ROUTE_REGISTRY["api.demo.switch-role"];
+    expect(Object.isFrozen(route)).toBe(true);
+    expect(Object.isFrozen(route.allowedRoles)).toBe(true);
+    expect(route.ratePolicy).toBe(INSTANCE_RATE_LIMIT_POLICIES.role_switch);
   });
 });

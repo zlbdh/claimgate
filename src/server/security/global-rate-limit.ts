@@ -9,32 +9,16 @@ export const APP_GLOBAL_RATE_LIMIT = Object.freeze({
   windowMs: 60_000,
 } as const);
 
-export type GlobalRateLimitInput = {
-  scope: string;
-  action: string;
-  limit: number;
-  windowMs: number;
-};
-
-function validInteger(value: number, positive = false): boolean {
-  return Number.isSafeInteger(value) && (!positive || value > 0);
-}
-
 export function createPersistentGlobalRateLimiter(options: {
   database: Database.Database;
   now?: () => number;
 }) {
   const now = options.now ?? Date.now;
-  const consume = (input: GlobalRateLimitInput): RateLimitResult => {
+  const consume = (): RateLimitResult => {
+    const input = APP_GLOBAL_RATE_LIMIT;
     const currentTime = now();
     if (
-      input.scope !== APP_GLOBAL_RATE_LIMIT.scope
-      || input.action !== APP_GLOBAL_RATE_LIMIT.action
-      || input.limit !== APP_GLOBAL_RATE_LIMIT.limit
-      || input.windowMs !== APP_GLOBAL_RATE_LIMIT.windowMs
-      || !validInteger(input.limit, true) || input.limit > 1_000
-      || !validInteger(input.windowMs, true) || input.windowMs > 86_400_000
-      || !validInteger(currentTime) || currentTime < 0
+      !Number.isSafeInteger(currentTime) || currentTime < 0
     ) throw new DomainError("VALIDATION_FAILED");
     const highWater = options.database.prepare(`
       SELECT high_water_time_ms AS highWaterTimeMs, limit_value AS limitValue,
@@ -55,6 +39,10 @@ export function createPersistentGlobalRateLimiter(options: {
         high_water_time_ms = MAX(high_water_time_ms, excluded.high_water_time_ms)
     `).run(input.scope, input.action, effectiveTime, input.limit, input.windowMs);
     const windowStartMs = Math.floor(effectiveTime / input.windowMs) * input.windowMs;
+    options.database.prepare(`
+      DELETE FROM application_rate_limit_buckets
+      WHERE scope = ? AND action = ? AND window_start_ms <> ?
+    `).run(input.scope, input.action, windowStartMs);
     const result = options.database.prepare(`
       INSERT INTO application_rate_limit_buckets (
         scope, action, window_start_ms, request_count
@@ -70,8 +58,8 @@ export function createPersistentGlobalRateLimiter(options: {
   };
   const transaction = options.database.transaction(consume);
   return Object.freeze({
-    consume(input: GlobalRateLimitInput) {
-      return options.database.inTransaction ? consume(input) : transaction.immediate(input);
+    consume() {
+      return options.database.inTransaction ? consume() : transaction.immediate();
     },
   });
 }

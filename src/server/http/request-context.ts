@@ -1,24 +1,25 @@
 import type { CsrfMetadata, CsrfService } from "@/features/auth/csrf";
-import {
-  DEMO_SESSION_COOKIE,
-  type DemoSessionSigner,
-} from "@/features/auth/demo-session";
+import { DEMO_SESSION_COOKIE, type DemoSessionSigner } from "@/features/auth/demo-session";
 import type { ClaimGateRepository } from "@/server/db/repository";
-import {
-  RATE_LIMIT_ACTIONS,
-  type PersistentRateLimiter,
-  type RateLimitAction,
-} from "@/server/security/rate-limit";
-import type { RateLimitPolicy } from "@/server/security/rate-limit-policy";
+import type { PersistentRateLimiter, RateLimitAction } from "@/server/security/rate-limit";
+import { INSTANCE_RATE_LIMIT_POLICIES } from "@/server/security/rate-limit-policy";
 import type { AppOrigin } from "@/shared/app-origin";
 import type { DemoRole, DemoUserId } from "@/shared/demo-identity";
 import { DomainError } from "@/shared/domain-error";
+import {
+  getAuthenticatedRoute,
+  type AuthenticatedRouteKey,
+} from "./authenticated-route-registry";
 import { throwRateLimited } from "./api-error";
-import { requireAuthenticatedWriteOrigin, requireConfiguredHost } from "./origin";
+import { requireAuthenticatedWriteOrigin } from "./origin";
 
-export type RequestDeclaration = Readonly<{
-  method: "POST";
-  routeId: string;
+export type AuthenticatedRequestPreflight = Readonly<{
+  sessionId: string;
+  demoInstanceId: string;
+  userId: DemoUserId;
+  role: DemoRole;
+  expiresAt: number;
+  routeKey: AuthenticatedRouteKey;
   action: RateLimitAction;
 }>;
 
@@ -32,17 +33,15 @@ export type AuthenticatedRequestContext = Readonly<{
   csrf: CsrfMetadata;
 }>;
 
-function expectedPath(routeId: string): string {
-  if (!/^api(?:\.[a-z0-9-]+)+$/.test(routeId)) throw new DomainError("CONFIGURATION_ERROR");
-  return `/${routeId.replaceAll(".", "/")}`;
-}
+const issuedPreflights = new WeakSet<object>();
+const issuedContexts = new WeakSet<object>();
 
-function requireDeclaration(request: Request, declaration: RequestDeclaration): void {
+function requireRegisteredTarget(request: Request, routeKey: AuthenticatedRouteKey): void {
+  const route = getAuthenticatedRoute(routeKey);
   const url = new URL(request.url);
   if (
-    request.method !== declaration.method
-    || !RATE_LIMIT_ACTIONS.includes(declaration.action)
-    || url.pathname !== expectedPath(declaration.routeId)
+    request.method !== route.method
+    || url.pathname !== route.path
     || url.search !== ""
     || url.hash !== ""
   ) throw new DomainError("FORBIDDEN");
@@ -60,18 +59,16 @@ function readSessionCookie(headers: Headers): string {
   return matches[0];
 }
 
-export function createAuthenticatedRequestContext(input: {
+export function preflightAuthenticatedRequest(input: {
   request: Request;
   appOrigin: AppOrigin;
   sessionSigner: DemoSessionSigner;
-  csrf: CsrfService;
-  csrfToken: string | undefined;
   repository: ClaimGateRepository;
-  declaration: RequestDeclaration;
-  requiredRole?: DemoRole;
-}): AuthenticatedRequestContext {
-  requireDeclaration(input.request, input.declaration);
-  requireConfiguredHost(input.request.headers, input.appOrigin);
+  routeKey: AuthenticatedRouteKey;
+}): AuthenticatedRequestPreflight {
+  const route = getAuthenticatedRoute(input.routeKey);
+  requireRegisteredTarget(input.request, input.routeKey);
+  requireAuthenticatedWriteOrigin(input.request.headers, input.appOrigin);
   const session = input.sessionSigner.verify(readSessionCookie(input.request.headers));
   let instance;
   try {
@@ -83,35 +80,69 @@ export function createAuthenticatedRequestContext(input: {
     throw error;
   }
   if (session.expiresAt > instance.expiresAtMs) throw new DomainError("AUTH_REQUIRED");
-  requireAuthenticatedWriteOrigin(input.request.headers, input.appOrigin);
-  const csrf = input.csrf.verify({
-    token: input.csrfToken,
-    sessionId: session.sessionId,
-    method: input.declaration.method,
-    routeId: input.declaration.routeId,
-    action: input.declaration.action,
-  });
-  if (input.requiredRole && session.role !== input.requiredRole) {
-    throw new DomainError("FORBIDDEN");
-  }
-  return Object.freeze({
+  if (!route.allowedRoles.includes(session.role)) throw new DomainError("FORBIDDEN");
+  const preflight = Object.freeze({
     sessionId: session.sessionId,
     demoInstanceId: session.demoInstanceId,
     userId: session.userId,
     role: session.role,
     expiresAt: session.expiresAt,
-    action: input.declaration.action,
+    routeKey: input.routeKey,
+    action: route.action,
+  });
+  issuedPreflights.add(preflight);
+  return preflight;
+}
+
+export function completeAuthenticatedRequest(input: {
+  preflight: AuthenticatedRequestPreflight;
+  csrf: CsrfService;
+  csrfToken: string | undefined;
+}): AuthenticatedRequestContext {
+  if (!issuedPreflights.has(input.preflight)) throw new DomainError("CONFIGURATION_ERROR");
+  const route = getAuthenticatedRoute(input.preflight.routeKey);
+  const csrf = input.csrf.verify({
+    token: input.csrfToken,
+    sessionId: input.preflight.sessionId,
+    method: route.method,
+    routeId: input.preflight.routeKey,
+    action: route.action,
+  });
+  if (csrf.oneTime !== route.requiresOneTime) throw new DomainError("FORBIDDEN");
+  const context = Object.freeze({
+    sessionId: input.preflight.sessionId,
+    demoInstanceId: input.preflight.demoInstanceId,
+    userId: input.preflight.userId,
+    role: input.preflight.role,
+    expiresAt: input.preflight.expiresAt,
+    action: route.action,
     csrf,
   });
+  issuedContexts.add(context);
+  return context;
+}
+
+export function createAuthenticatedRequestContext(input: {
+  request: Request;
+  appOrigin: AppOrigin;
+  sessionSigner: DemoSessionSigner;
+  csrf: CsrfService;
+  csrfToken: string | undefined;
+  repository: ClaimGateRepository;
+  routeKey: AuthenticatedRouteKey;
+}): AuthenticatedRequestContext {
+  const preflight = preflightAuthenticatedRequest(input);
+  return completeAuthenticatedRequest({ preflight, csrf: input.csrf, csrfToken: input.csrfToken });
 }
 
 export function executeAuthorizedMutation<T>(input: {
   context: AuthenticatedRequestContext;
   repository: ClaimGateRepository;
   limiter: PersistentRateLimiter;
-  policy: RateLimitPolicy;
   mutation: (repository: ClaimGateRepository) => T extends PromiseLike<unknown> ? never : T;
 }): T {
+  if (!issuedContexts.has(input.context)) throw new DomainError("CONFIGURATION_ERROR");
+  const policy = INSTANCE_RATE_LIMIT_POLICIES[input.context.action];
   return input.repository.withTransaction((repository) => {
     if (input.context.csrf.oneTime) {
       repository.consumeActionNonce({
@@ -124,7 +155,7 @@ export function executeAuthorizedMutation<T>(input: {
       demoInstanceId: input.context.demoInstanceId,
       actorId: input.context.userId,
       action: input.context.action,
-      ...input.policy,
+      ...policy,
     });
     if (!result.allowed) throwRateLimited(result.retryAfterMs);
     return input.mutation(repository);

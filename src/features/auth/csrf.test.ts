@@ -29,9 +29,9 @@ describe("action-bound CSRF", () => {
     expect(verified).toEqual({
       oneTime: true,
       expiresAt: NOW + 60_000,
-      nonceDigest: expect.any(Buffer),
+      nonceDigest: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
     });
-    expect(verified.nonceDigest).toHaveLength(32);
+    expect(Buffer.from(verified.nonceDigest, "base64url")).toHaveLength(32);
     expect(Object.isFrozen(verified)).toBe(true);
   });
 
@@ -103,8 +103,7 @@ describe("action-bound CSRF", () => {
     const second = csrf.mint(input);
 
     expect(second).not.toBe(first);
-    expect(csrf.verify({ ...input, token: second }).nonceDigest.equals(
-      csrf.verify({ ...input, token: first }).nonceDigest,
-    )).toBe(false);
+    expect(csrf.verify({ ...input, token: second }).nonceDigest)
+      .not.toBe(csrf.verify({ ...input, token: first }).nonceDigest);
   });
 });

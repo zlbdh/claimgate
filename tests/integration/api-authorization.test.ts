@@ -62,8 +62,10 @@ function startRequest(overrides: Record<string, string> = {}) {
       host: "127.0.0.1:3100",
       origin: "http://127.0.0.1:3100",
       "sec-fetch-site": "same-origin",
+      "content-type": "application/x-www-form-urlencoded",
       ...overrides,
     },
+    body: "",
   });
 }
 
@@ -115,12 +117,7 @@ describe("真实 Route Handler 授权集成", () => {
   it("全局额度耗尽时不创建实例，并返回 bounded 429/Retry-After", async () => {
     const runtime = setup();
     for (let index = 0; index < 30; index += 1) {
-      runtime.globalLimiter.consume({
-        scope: "public-demo-entry",
-        action: "demo_start",
-        limit: 30,
-        windowMs: 60_000,
-      });
+      runtime.globalLimiter.consume();
     }
     const response = await runtime.start(startRequest());
 

@@ -2,12 +2,13 @@ import type { CsrfService } from "@/features/auth/csrf";
 import type { DemoSessionSigner } from "@/features/auth/demo-session";
 import type { ClaimGateRepository } from "@/server/db/repository";
 import type { PersistentRateLimiter } from "@/server/security/rate-limit";
-import { INSTANCE_RATE_LIMIT_POLICIES } from "@/server/security/rate-limit-policy";
 import { mapApiError } from "@/server/http/api-error";
 import {
-  createAuthenticatedRequestContext,
+  completeAuthenticatedRequest,
   executeAuthorizedMutation,
+  preflightAuthenticatedRequest,
 } from "@/server/http/request-context";
+import { readStrictUrlEncodedForm } from "@/server/http/urlencoded-form";
 import type { AppOrigin } from "@/shared/app-origin";
 import { isDemoRole, type DemoRole } from "@/shared/demo-identity";
 import { DomainError } from "@/shared/domain-error";
@@ -22,52 +23,52 @@ type SwitchDependencies = {
   now: () => number;
 };
 
-async function readStrictForm(request: Request): Promise<{
+function parseStrictForm(
+  entries: ReadonlyArray<readonly [string, string]>,
+  currentRole: DemoRole,
+): {
   csrfToken: string;
   targetRole: DemoRole;
-}> {
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    throw new DomainError("VALIDATION_FAILED");
-  }
-  const entries = [...form.entries()];
+} {
+  const values = new Map(entries);
   if (
     entries.length !== 2
-    || entries[0]?.[0] !== "csrfToken"
-    || entries[1]?.[0] !== "targetRole"
-    || typeof entries[0][1] !== "string"
-    || entries[0][1].length === 0
-    || entries[0][1].length > 1_024
-    || !isDemoRole(entries[1][1])
+    || values.size !== 2
+    || !values.has("csrfToken")
+    || !values.has("targetRole")
   ) throw new DomainError("VALIDATION_FAILED");
-  return { csrfToken: entries[0][1], targetRole: entries[1][1] };
+  const csrfToken = values.get("csrfToken")!;
+  const targetRole = values.get("targetRole")!;
+  if (
+    csrfToken.length === 0
+    || csrfToken.length > 1_024
+    || !isDemoRole(targetRole)
+    || targetRole === currentRole
+  ) throw new DomainError("VALIDATION_FAILED");
+  return { csrfToken, targetRole };
 }
 
 export function createSwitchRoleRouteHandler(dependencies: SwitchDependencies) {
   return async function switchRole(request: Request): Promise<Response> {
     try {
-      const form = await readStrictForm(request);
-      const context = createAuthenticatedRequestContext({
+      const preflight = preflightAuthenticatedRequest({
         request,
         appOrigin: dependencies.appOrigin,
         sessionSigner: dependencies.sessionSigner,
+        repository: dependencies.repository,
+        routeKey: "api.demo.switch-role",
+      });
+      const entries = await readStrictUrlEncodedForm(request);
+      const form = parseStrictForm(entries, preflight.role);
+      const context = completeAuthenticatedRequest({
+        preflight,
         csrf: dependencies.csrf,
         csrfToken: form.csrfToken,
-        repository: dependencies.repository,
-        declaration: {
-          method: "POST",
-          routeId: "api.demo.switch-role",
-          action: "role_switch",
-        },
       });
-      if (!context.csrf.oneTime) throw new DomainError("FORBIDDEN");
       const signed = executeAuthorizedMutation({
         context,
         repository: dependencies.repository,
         limiter: dependencies.limiter,
-        policy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
         mutation: () => dependencies.sessionSigner.rotate(context, form.targetRole),
       });
       return sessionRedirectResponse({

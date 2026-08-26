@@ -26,7 +26,7 @@ type CsrfBinding = {
 export type CsrfMetadata = Readonly<{
   oneTime: boolean;
   expiresAt: number;
-  nonceDigest: Buffer;
+  nonceDigest: string;
 }>;
 
 function validBinding(value: CsrfBinding): boolean {
@@ -107,7 +107,10 @@ export function createCsrfService(options: {
       if (!nonce || nonce.length !== 32) throw new Error();
       const canonical = { n: record.n, m: record.m, p: record.p, a: record.a, o: record.o, exp: record.exp };
       if (encodeBase64Url(JSON.stringify(canonical)) !== parts[1]) throw new Error();
-      const nonceDigest = createHmac("sha256", key).update(NONCE_PURPOSE).update(nonce).digest();
+      const nonceDigest = createHmac("sha256", key)
+        .update(NONCE_PURPOSE)
+        .update(nonce)
+        .digest("base64url");
       return Object.freeze({
         oneTime: record.o,
         expiresAt: record.exp as number,

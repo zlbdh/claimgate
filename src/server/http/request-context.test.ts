@@ -4,7 +4,6 @@ import { createCsrfService } from "@/features/auth/csrf";
 import { createDemoSessionSigner, DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createTestDatabase, type TestDatabase } from "@/server/db/test-harness";
 import { createPersistentRateLimiter } from "@/server/security/rate-limit";
-import { INSTANCE_RATE_LIMIT_POLICIES } from "@/server/security/rate-limit-policy";
 import { parseAppOrigin } from "./origin";
 import {
   createAuthenticatedRequestContext,
@@ -62,11 +61,7 @@ describe("固定顺序 request context", () => {
       csrf: setupResult.csrf,
       csrfToken: setupResult.csrfToken,
       repository: testDatabase!.repository,
-      declaration: {
-        method: "POST",
-        routeId: "api.demo.switch-role",
-        action: "role_switch",
-      },
+      routeKey: "api.demo.switch-role",
     });
 
     expect(context).toEqual({
@@ -76,24 +71,16 @@ describe("固定顺序 request context", () => {
       role: "CLAIMANT",
       expiresAt: setupResult.instance.expiresAtMs,
       action: "role_switch",
-      csrf: expect.objectContaining({ oneTime: true, nonceDigest: expect.any(Buffer) }),
+      csrf: expect.objectContaining({
+        oneTime: true,
+        nonceDigest: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      }),
     });
     expect(Object.isFrozen(context)).toBe(true);
   });
 
-  it("role 与实例过期边界由服务端复核", () => {
+  it("registry 允许两种 public-demo role，实例过期边界仍由服务端复核", () => {
     const setupResult = setup("CLAIMANT");
-    expect(() => createAuthenticatedRequestContext({
-      request: setupResult.request,
-      appOrigin: APP_ORIGIN,
-      sessionSigner: setupResult.sessionSigner,
-      csrf: setupResult.csrf,
-      csrfToken: setupResult.csrfToken,
-      repository: testDatabase!.repository,
-      requiredRole: "STAFF",
-      declaration: { method: "POST", routeId: "api.demo.switch-role", action: "role_switch" },
-    })).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
-
     testDatabase!.database.prepare("UPDATE demo_instances SET expires_at_ms = ? WHERE id = ?")
       .run(NOW + 1_000, setupResult.instance.demoInstanceId);
     expect(() => createAuthenticatedRequestContext({
@@ -103,7 +90,7 @@ describe("固定顺序 request context", () => {
       csrf: setupResult.csrf,
       csrfToken: setupResult.csrfToken,
       repository: testDatabase!.repository,
-      declaration: { method: "POST", routeId: "api.demo.switch-role", action: "role_switch" },
+      routeKey: "api.demo.switch-role",
     })).toThrow(expect.objectContaining({ code: "AUTH_REQUIRED" }));
   });
 
@@ -117,14 +104,13 @@ describe("固定顺序 request context", () => {
       csrf: setupResult.csrf,
       csrfToken: setupResult.csrfToken,
       repository: testDatabase!.repository,
-      declaration: { method: "POST", routeId: "api.demo.switch-role", action: "role_switch" },
+      routeKey: "api.demo.switch-role",
     });
 
     expect(() => executeAuthorizedMutation({
       context,
       repository: testDatabase!.repository,
       limiter,
-      policy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
       mutation: () => { throw new Error("business rollback"); },
     })).toThrow("business rollback");
     expect(testDatabase!.database.prepare("SELECT COUNT(*) AS count FROM consumed_action_nonces").get())
@@ -136,14 +122,12 @@ describe("固定顺序 request context", () => {
       context,
       repository: testDatabase!.repository,
       limiter,
-      policy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
       mutation: () => "committed",
     })).toBe("committed");
     expect(() => executeAuthorizedMutation({
       context,
       repository: testDatabase!.repository,
       limiter,
-      policy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
       mutation: () => "replay",
     })).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });

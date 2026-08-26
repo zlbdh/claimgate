@@ -1,9 +1,9 @@
 import type { DemoSessionSigner } from "@/features/auth/demo-session";
 import type { ClaimGateRepository } from "@/server/db/repository";
 import type { PersistentGlobalRateLimiter } from "@/server/security/global-rate-limit";
-import { APP_GLOBAL_RATE_LIMIT } from "@/server/security/global-rate-limit";
 import { mapApiError, throwRateLimited } from "@/server/http/api-error";
 import { requireDemoStartOrigin } from "@/server/http/origin";
+import { readStrictUrlEncodedForm } from "@/server/http/urlencoded-form";
 import type { AppOrigin } from "@/shared/app-origin";
 import { DomainError } from "@/shared/domain-error";
 import { sessionRedirectResponse } from "../route-response";
@@ -31,8 +31,10 @@ export function createStartRouteHandler(dependencies: StartDependencies) {
     try {
       requireStartTarget(request);
       requireDemoStartOrigin(request.headers, dependencies.appOrigin);
+      const form = await readStrictUrlEncodedForm(request);
+      if (form.length !== 0) throw new DomainError("VALIDATION_FAILED");
       const signed = dependencies.repository.withTransaction((repository) => {
-        const allowance = dependencies.globalLimiter.consume(APP_GLOBAL_RATE_LIMIT);
+        const allowance = dependencies.globalLimiter.consume();
         if (!allowance.allowed) throwRateLimited(allowance.retryAfterMs);
         const instance = repository.createDemoInstance();
         return dependencies.sessionSigner.mint({

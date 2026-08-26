@@ -128,7 +128,7 @@ export type IdempotencyRequest = {
 export type ConsumeActionNonceInput = {
   demoInstanceId: string;
   action: string;
-  nonceDigest: Buffer;
+  nonceDigest: string;
 };
 
 export type IdempotencyResult =
