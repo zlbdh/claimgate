@@ -34,6 +34,46 @@ CREATE TABLE IF NOT EXISTS found_items (
 CREATE INDEX IF NOT EXISTS found_items_instance_status_idx
   ON found_items(demo_instance_id, status);
 
+CREATE TRIGGER IF NOT EXISTS demo_instances_id_not_found_item_id_global_insert
+BEFORE INSERT ON demo_instances
+WHEN EXISTS (
+  SELECT 1 FROM found_items
+  WHERE id = NEW.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'demo instance id must not be an inventory id');
+END;
+
+CREATE TRIGGER IF NOT EXISTS demo_instances_id_not_found_item_id_global_update
+BEFORE UPDATE OF id ON demo_instances
+WHEN EXISTS (
+  SELECT 1 FROM found_items
+  WHERE id = NEW.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'demo instance id must not be an inventory id');
+END;
+
+CREATE TRIGGER IF NOT EXISTS found_items_id_not_demo_instance_id_global_insert
+BEFORE INSERT ON found_items
+WHEN EXISTS (
+  SELECT 1 FROM demo_instances
+  WHERE id = NEW.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'inventory id must not be a demo instance id');
+END;
+
+CREATE TRIGGER IF NOT EXISTS found_items_id_not_demo_instance_id_global_update
+BEFORE UPDATE OF id ON found_items
+WHEN EXISTS (
+  SELECT 1 FROM demo_instances
+  WHERE id = NEW.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'inventory id must not be a demo instance id');
+END;
+
 CREATE TABLE IF NOT EXISTS item_evidence_slots (
   demo_instance_id TEXT NOT NULL,
   found_item_id TEXT NOT NULL,

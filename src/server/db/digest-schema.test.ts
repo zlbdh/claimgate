@@ -48,6 +48,12 @@ describe("digest-only SQLite 约束", () => {
       publicDescription: "Black earbud case.",
     });
     const item = repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
+    repository.publishLostReport({
+      demoInstanceId: instance.demoInstanceId,
+      reportId: report.reportId,
+      expectedVersion: report.version,
+      actorId: "claimant-demo",
+    });
     const claim = repository.createClaim({
       demoInstanceId: instance.demoInstanceId,
       reportId: report.reportId,

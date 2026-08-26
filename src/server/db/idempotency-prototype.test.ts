@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("幂等 acknowledgement 的 prototype-safe canonical serialization", () => {
-  it("忽略继承的 Object.prototype.toJSON 与污染字段，首调/replay/落库字节一致", () => {
+  it("忽略继承的 Object.prototype.toJSON，且首调/replay 是可传输普通 DTO", async () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -54,7 +54,17 @@ describe("幂等 acknowledgement 的 prototype-safe canonical serialization", ()
       });
       expect(first).toEqual(expected);
       expect(replay).toEqual(expected);
-      expect(Reflect.ownKeys(first)).toEqual(["kind", "reportId", "status", "version"]);
+      expect(Object.getPrototypeOf(first)).toBe(Object.prototype);
+      expect(Object.keys(first)).toEqual(["kind", "reportId", "status", "version"]);
+      expect(Object.getOwnPropertyDescriptor(first, "toJSON")).toEqual({
+        configurable: false,
+        enumerable: false,
+        value: undefined,
+        writable: false,
+      });
+      expect({ ...first }).toEqual(expected);
+      expect(structuredClone(first)).toEqual(expected);
+      expect(await Response.json(first).json()).toEqual(expected);
       expect(database.prepare("SELECT result_json AS resultJson FROM idempotency_records").get())
         .toEqual({
           resultJson: "{\"kind\":\"report_ack\",\"reportId\":\"safe-report\",\"status\":\"DRAFT\",\"version\":1}",

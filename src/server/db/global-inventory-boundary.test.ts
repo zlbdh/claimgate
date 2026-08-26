@@ -67,6 +67,12 @@ describe("全库内部库存身份公共边界", () => {
     const internalId = repository.listServerInternalFoundItems(first.demoInstanceId)[0]!.inventoryItemId;
     const secondItem = repository.listServerInternalFoundItems(second.demoInstanceId)[0]!;
     const report = repository.createLostReport(reportInput(second.demoInstanceId));
+    repository.publishLostReport({
+      demoInstanceId: second.demoInstanceId,
+      reportId: report.reportId,
+      expectedVersion: report.version,
+      actorId: "claimant-demo",
+    });
     const claim = repository.createClaim({
       demoInstanceId: second.demoInstanceId,
       reportId: report.reportId,

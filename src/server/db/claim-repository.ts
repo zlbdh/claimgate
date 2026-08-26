@@ -17,6 +17,11 @@ import {
 } from "./repository-internal";
 
 type ClaimRow = Omit<ClaimRecord, "evidenceEligible"> & { evidenceEligible: number };
+type ClaimCreationReportRow = {
+  ownerActorId: string;
+  status: string;
+};
+type ClaimCreationItemRow = { status: string };
 
 function toRecord(row: ClaimRow): ClaimRecord {
   return { ...row, evidenceEligible: row.evidenceEligible === 1 };
@@ -44,13 +49,17 @@ export function createClaim(context: RepositoryContext, input: CreateClaimInput)
     activeInstance(context, input.demoInstanceId);
     const claimantActorId = requireActor(input.claimantActorId);
     if (claimantActorId !== "claimant-demo") throw new DomainError("VALIDATION_FAILED");
-    const report = context.database.prepare(
-      "SELECT 1 FROM lost_reports WHERE demo_instance_id = ? AND id = ?",
-    ).get(input.demoInstanceId, input.reportId);
-    const item = context.database.prepare(
-      "SELECT 1 FROM found_items WHERE demo_instance_id = ? AND id = ?",
-    ).get(input.demoInstanceId, input.inventoryItemId);
+    const report = context.database.prepare(`
+      SELECT owner_actor_id AS ownerActorId, status
+      FROM lost_reports WHERE demo_instance_id = ? AND id = ?
+    `).get(input.demoInstanceId, input.reportId) as ClaimCreationReportRow | undefined;
+    const item = context.database.prepare(`
+      SELECT status FROM found_items WHERE demo_instance_id = ? AND id = ?
+    `).get(input.demoInstanceId, input.inventoryItemId) as ClaimCreationItemRow | undefined;
     if (!report || !item) throw new DomainError("NOT_FOUND");
+    if (report.ownerActorId !== claimantActorId) throw new DomainError("FORBIDDEN");
+    if (report.status !== "PUBLISHED") throw new DomainError("INVALID_STATE_TRANSITION");
+    if (item.status !== "AVAILABLE") throw new DomainError("ITEM_UNAVAILABLE");
     const claimId = context.randomId();
     context.database.prepare(`
       INSERT INTO claims (

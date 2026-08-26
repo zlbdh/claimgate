@@ -28,6 +28,12 @@ describe("审计复合关系与闭合形状", () => {
     const first = repository.createDemoInstance();
     const second = repository.createDemoInstance();
     const report = repository.createLostReport(reportInput(first.demoInstanceId));
+    repository.publishLostReport({
+      demoInstanceId: first.demoInstanceId,
+      reportId: report.reportId,
+      expectedVersion: report.version,
+      actorId: "claimant-demo",
+    });
     const item = repository.listServerInternalFoundItems(first.demoInstanceId)[0]!;
     const claim = repository.createClaim({
       demoInstanceId: first.demoInstanceId,

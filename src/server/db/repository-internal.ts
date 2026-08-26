@@ -55,6 +55,7 @@ export function activeInstance(context: RepositoryContext, demoInstanceId: strin
     FROM demo_instances WHERE id = ? AND expires_at_ms > ?
   `).get(demoInstanceId, now) as DemoInstanceRow | undefined;
   if (!row) throw new DomainError("NOT_FOUND");
+  assertNoInternalInventoryIdentity(context, row, "CONFIGURATION_ERROR");
   return row;
 }
 

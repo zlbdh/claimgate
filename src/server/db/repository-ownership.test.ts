@@ -121,6 +121,12 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
     const report = repository.createLostReport(reportInput(instance.demoInstanceId));
+    repository.publishLostReport({
+      demoInstanceId: instance.demoInstanceId,
+      reportId: report.reportId,
+      expectedVersion: report.version,
+      actorId: "claimant-demo",
+    });
     const item = repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
     const claim = repository.createClaim({
       demoInstanceId: instance.demoInstanceId,

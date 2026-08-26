@@ -106,13 +106,13 @@ function canonicalResult(
     result.status = "EVIDENCE_REQUIRED";
     result.version = parsed.version;
   }
-  const protectedResult = new Proxy(result, {
-    get(target, property, receiver) {
-      if (property === "toJSON") return undefined;
-      return Reflect.get(target, property, receiver);
-    },
+  Object.defineProperty(result, "toJSON", {
+    configurable: false,
+    enumerable: false,
+    value: undefined,
+    writable: false,
   });
-  return { result: protectedResult as IdempotencyResult, resultJson };
+  return { result: result as IdempotencyResult, resultJson };
 }
 
 export function runIdempotent(

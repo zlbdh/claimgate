@@ -67,6 +67,12 @@ describe("泛化仓库不进入高后果状态", () => {
       publicTags: ["wireless"],
       publicDescription: "Black earbud case.",
     });
+    repository.publishLostReport({
+      demoInstanceId: instance.demoInstanceId,
+      reportId: report.reportId,
+      expectedVersion: report.version,
+      actorId: "claimant-demo",
+    });
     const item = repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
     const claim = repository.createClaim({
       demoInstanceId: instance.demoInstanceId,

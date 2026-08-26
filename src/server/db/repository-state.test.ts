@@ -23,10 +23,26 @@ describe("仓库状态写入守卫", () => {
       publicTags: ["wireless"],
       publicDescription: "Black earbud case.",
     });
+    const claimReport = repository.createLostReport({
+      demoInstanceId: instance.demoInstanceId,
+      ownerActorId: "claimant-demo",
+      category: "earbuds",
+      timeWindow: { from: "2026-08-25T17:00:00.000Z", to: "2026-08-25T19:00:00.000Z" },
+      area: "library",
+      color: "black",
+      publicTags: ["wireless"],
+      publicDescription: "Published report for claim state checks.",
+    });
+    repository.publishLostReport({
+      demoInstanceId: instance.demoInstanceId,
+      reportId: claimReport.reportId,
+      expectedVersion: claimReport.version,
+      actorId: "claimant-demo",
+    });
     const item = repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
     const claim = repository.createClaim({
       demoInstanceId: instance.demoInstanceId,
-      reportId: report.reportId,
+      reportId: claimReport.reportId,
       inventoryItemId: item.inventoryItemId,
       claimantActorId: "claimant-demo",
     });

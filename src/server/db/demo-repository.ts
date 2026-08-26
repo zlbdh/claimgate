@@ -15,6 +15,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
       expiresAtMs: createdAtMs + TWO_HOURS_MS,
       catalogVersion: 1,
     };
+    assertNoInternalInventoryIdentity(context, instance, "CONFIGURATION_ERROR");
     context.database.prepare(`
       INSERT INTO demo_instances (id, created_at_ms, expires_at_ms, catalog_version)
       VALUES (?, ?, ?, 1)
@@ -38,6 +39,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
       );
     }
     appendInstanceAudit(context, instance.demoInstanceId, "DEMO_CREATED", "system");
+    assertNoInternalInventoryIdentity(context, instance, "CONFIGURATION_ERROR");
     return instance;
   });
 }
