@@ -28,11 +28,16 @@ export default async function Home() {
   return (
     <main>
       {authenticated ? (
-        <DemoRoleBar
-          role={authenticated.session.role}
-          expiresAt={authenticated.session.expiresAt}
-          csrfToken={authenticated.csrfToken}
-        />
+        <>
+          <DemoRoleBar
+            role={authenticated.session.role}
+            expiresAt={authenticated.session.expiresAt}
+            csrfToken={authenticated.csrfToken}
+          />
+          {authenticated.session.role === "CLAIMANT" && (
+            <p><Link className="primary-link" href="/claimant">Open Claimant report desk</Link></p>
+          )}
+        </>
       ) : (
         <section className="start-demo" aria-labelledby="start-demo-title">
           <p className="eyebrow">Two-hour isolated public demo</p>

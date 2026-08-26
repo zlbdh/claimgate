@@ -48,3 +48,9 @@ export function requireAuthenticatedWriteOrigin(headers: Headers, appOrigin: App
   const fetchSite = headers.get("sec-fetch-site");
   if (fetchSite !== null && fetchSite !== "same-origin") throw new DomainError("FORBIDDEN");
 }
+
+export function requireAuthenticatedReadOrigin(headers: Headers, appOrigin: AppOrigin): void {
+  requireConfiguredHost(headers, appOrigin);
+  const fetchSite = headers.get("sec-fetch-site");
+  if (fetchSite !== null && fetchSite !== "same-origin") throw new DomainError("FORBIDDEN");
+}

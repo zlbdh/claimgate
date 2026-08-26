@@ -23,12 +23,14 @@ function requireLocalDatabasePath(value: string | undefined): string {
 }
 
 function createRuntime() {
+  const keyring = createKeyring(process.env.CLAIMGATE_HMAC_KEY);
   const database = initializeDatabase({
     databasePath: requireLocalDatabasePath(process.env.CLAIMGATE_DATABASE_PATH),
-    keyring: createKeyring(process.env.CLAIMGATE_HMAC_KEY),
+    keyring,
   });
   return Object.freeze({
     database,
+    keyring,
     repository: createRepository({ database }),
     limiter: createPersistentRateLimiter({ database }),
     globalLimiter: createPersistentGlobalRateLimiter({ database }),

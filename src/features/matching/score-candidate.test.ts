@@ -22,11 +22,16 @@ describe("scoreCandidate", () => {
     expect(scoreCandidate(report({ area: "park", color: "red", publicTags: [], timeWindow: { from: "2026-08-20T10:00:00.000Z", to: "2026-08-20T11:00:00.000Z" } }), item({ area: "library", color: "orange", publicTags: [], foundAt: "2026-08-26T11:30:00.000Z" }))?.score).toBe(22);
   });
 
-  it("returns a strong explainable candidate without secret fields", () => {
+  it("returns a strong server-internal candidate with only disclosure-safe reasons", () => {
     const result = scoreCandidate(earbudReport({ publicTags: ["a", "b", "c", "d", "e"] }), matchingEarbudItem({ publicTags: ["a", "b", "c", "d", "e"] }));
-    expect(result).toMatchObject({ score: 100, confidence: "strong" });
+    expect(result).toMatchObject({
+      score: 100,
+      confidence: "strong",
+      inventoryItemId: "candidate-1",
+      timeBand: "within six hours",
+    });
     expect(result?.reasons.length).toBeGreaterThan(0);
-    expect(JSON.stringify(result)).not.toContain("unique_mark");
+    expect(result?.reasons.join(" ")).not.toMatch(/\+\d+|wireless|unique_mark/);
   });
 
   it("keeps the exact confidence boundaries deterministic", () => {

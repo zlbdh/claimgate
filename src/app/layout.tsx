@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 import "./demo-session.css";
+import "./report-workspace.css";
 import "./webmcp-probe/probe.css";
 
 export const metadata: Metadata = {

@@ -15,7 +15,7 @@ export function report(overrides: Partial<LostReport> = {}): LostReport {
 
 export function item(overrides: Partial<FoundItem> = {}): FoundItem {
   return {
-    candidateId: "candidate-1",
+    inventoryItemId: "candidate-1",
     category: "earbuds",
     foundAt: "2026-08-26T11:30:00.000Z",
     area: "library",

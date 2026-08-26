@@ -112,7 +112,7 @@ describe("隔离演示实例与种子", () => {
 
     const matches = findMatches(
       matchingReport({ ...createReportInput(first.demoInstanceId), timeWindow: createReportInput(first.demoInstanceId).timeWindow }),
-      firstItems.map(({ inventoryItemId, ...item }) => ({ ...item, candidateId: inventoryItemId })),
+      firstItems,
     );
     expect(matches[0]?.confidence).toBe("strong");
   });

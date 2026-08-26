@@ -48,7 +48,7 @@ export type UpdateLostReportInput = {
   actorId: string;
   patch: Partial<Pick<
     LostReportRecord,
-    "area" | "color" | "publicTags" | "publicDescription" | "timeWindow"
+    "category" | "area" | "color" | "publicTags" | "publicDescription" | "timeWindow"
   >>;
 };
 

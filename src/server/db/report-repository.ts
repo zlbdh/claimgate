@@ -125,7 +125,7 @@ export function updateLostReport(
   return immediate(context, () => {
     activeInstance(context, input.demoInstanceId);
     const actorId = requireActor(input.actorId);
-    requirePatchKeys(input.patch, ["area", "color", "publicTags", "publicDescription", "timeWindow"]);
+    requirePatchKeys(input.patch, ["category", "area", "color", "publicTags", "publicDescription", "timeWindow"]);
     if (input.patch.publicTags !== undefined) {
       validatePublicTags(input.patch.publicTags, "VALIDATION_FAILED");
     }
@@ -136,10 +136,11 @@ export function updateLostReport(
     const existing = toRecord(row);
     const next = { ...existing, ...input.patch, timeWindow: input.patch.timeWindow ?? existing.timeWindow };
     const result = context.database.prepare(`
-      UPDATE lost_reports SET time_from = ?, time_to = ?, area = ?, color = ?,
+      UPDATE lost_reports SET category = ?, time_from = ?, time_to = ?, area = ?, color = ?,
         public_tags_json = ?, public_description = ?, status = ?, version = version + 1
       WHERE demo_instance_id = ? AND id = ? AND version = ?
     `).run(
+      next.category,
       next.timeWindow.from,
       next.timeWindow.to,
       next.area,

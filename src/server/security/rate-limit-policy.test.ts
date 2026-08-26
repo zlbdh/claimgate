@@ -48,6 +48,35 @@ describe("冻结的完整限流策略矩阵", () => {
         requiresOneTime: true,
         ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.role_switch,
       },
+      "api.reports.create": {
+        method: "POST", path: "/api/reports", action: "draft_create",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: false,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.draft_create,
+      },
+      "api.reports.update": {
+        method: "POST", path: "/api/reports/:reportId", action: "draft_update",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: false,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.draft_update,
+      },
+      "api.reports.publish": {
+        method: "POST", path: "/api/reports/:reportId/publish", action: "report_publish",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.report_publish,
+      },
+      "api.reports.archive": {
+        method: "POST", path: "/api/reports/:reportId/archive", action: "report_archive",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.report_archive,
+      },
+      "api.reports.list": {
+        method: "GET", path: "/api/reports", action: null,
+        allowedRoles: ["CLAIMANT"], requiresOneTime: false, ratePolicy: null,
+      },
+      "api.reports.matches": {
+        method: "GET", path: "/api/reports/:reportId/matches", action: "match_find",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: false,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.match_find,
+      },
     });
     expect(Object.isFrozen(AUTHENTICATED_ROUTE_REGISTRY)).toBe(true);
     const route = AUTHENTICATED_ROUTE_REGISTRY["api.demo.switch-role"];

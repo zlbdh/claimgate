@@ -36,13 +36,13 @@ export function mapApiError(error: unknown): Response {
     return Response.json(domainError.toJSON(), {
       status: 429,
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, no-store",
         "Retry-After": String(error.retryAfterSeconds),
       },
     });
   }
   if (error instanceof DomainError) {
-    const headers: Record<string, string> = { "Cache-Control": "no-store" };
+    const headers: Record<string, string> = { "Cache-Control": "private, no-store" };
     if (error.code === "RATE_LIMITED") headers["Retry-After"] = "1";
     return Response.json(error.toJSON(), {
       status: HTTP_STATUS[error.code],
@@ -53,6 +53,6 @@ export function mapApiError(error: unknown): Response {
     error: { code: "INTERNAL_ERROR", message: "Internal server error." },
   }, {
     status: 500,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "private, no-store" },
   });
 }

@@ -7,5 +7,5 @@ export type PublicFoundItem = {
   publicDescription: string;
 };
 
-/** Inventory records deliberately contain only fields safe for matching; secret evidence belongs elsewhere. */
-export type FoundItem = PublicFoundItem & { candidateId: string };
+/** Server-only match input. The inventory identity must never cross a browser/API boundary. */
+export type FoundItem = PublicFoundItem & { inventoryItemId: string };
