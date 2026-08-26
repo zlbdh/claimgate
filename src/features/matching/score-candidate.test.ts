@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { item, report, earbudReport, matchingEarbudItem } from "@/test/factories";
-import { scoreCandidate } from "./score-candidate";
+import { confidenceForScore, scoreCandidate } from "./score-candidate";
 
 describe("scoreCandidate", () => {
   it("rejects a candidate with a different category before scoring", () => {
@@ -27,5 +27,12 @@ describe("scoreCandidate", () => {
     expect(result).toMatchObject({ score: 100, confidence: "strong" });
     expect(result?.reasons.length).toBeGreaterThan(0);
     expect(JSON.stringify(result)).not.toContain("unique_mark");
+  });
+
+  it("keeps the exact confidence boundaries deterministic", () => {
+    expect(confidenceForScore(75)).toBe("strong");
+    expect(confidenceForScore(74)).toBe("possible");
+    expect(confidenceForScore(60)).toBe("possible");
+    expect(confidenceForScore(59)).toBe("weak");
   });
 });

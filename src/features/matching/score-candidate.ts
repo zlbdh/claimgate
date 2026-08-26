@@ -17,6 +17,10 @@ export type MatchCandidate = {
   publicSummary: PublicFoundItem;
 };
 
+export function confidenceForScore(score: number): MatchCandidate["confidence"] {
+  return score >= 75 ? "strong" : score >= 60 ? "possible" : "weak";
+}
+
 export const ADJACENT_AREAS: Record<string, readonly string[]> = {
   library: ["student-center", "park", "station"],
   "student-center": ["library", "park"],
@@ -64,6 +68,6 @@ export function scoreCandidate(report: LostReport, item: FoundItem): MatchCandid
   const sharedTags = report.publicTags.map(normalize).filter((tag, index, tags) => tags.indexOf(tag) === index && foundTags.has(tag));
   const tagScore = Math.min(sharedTags.length * 5, 25);
   if (tagScore) { score += tagScore; reasons.push(`${sharedTags.length} shared public tag(s) (+${tagScore})`); }
-  const confidence = score >= 75 ? "strong" : score >= 60 ? "possible" : "weak";
+  const confidence = confidenceForScore(score);
   return { candidateId: item.candidateId, score, confidence, reasons, publicSummary: { category: item.category, foundAt: item.foundAt, area: item.area, color: item.color, publicTags: [...item.publicTags], publicDescription: item.publicDescription } };
 }
