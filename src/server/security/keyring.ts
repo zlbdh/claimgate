@@ -2,7 +2,12 @@ import { Buffer } from "node:buffer";
 import { hkdfSync } from "node:crypto";
 import { DomainError } from "@/shared/domain-error";
 
-export const KEY_PURPOSES = ["evidence", "pickup-pass", "candidate-handle", "database-key-check"] as const;
+export const KEY_PURPOSES = Object.freeze([
+  "evidence",
+  "pickup-pass",
+  "candidate-handle",
+  "database-key-check",
+] as const);
 export type KeyPurpose = (typeof KEY_PURPOSES)[number];
 
 const KEY_LENGTH_BYTES = 32;

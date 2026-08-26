@@ -11,20 +11,27 @@ export type ClaimStatus =
   | "PICKUP_READY"
   | "COLLECTED";
 
-export const allowedReportTransitions: Readonly<Record<ReportStatus, readonly ReportStatus[]>> = {
+function freezeTransitionTable<T extends string>(
+  transitions: Record<T, T[]>,
+): Readonly<Record<T, readonly T[]>> {
+  for (const nextStates of Object.values(transitions)) Object.freeze(nextStates);
+  return Object.freeze(transitions);
+}
+
+export const allowedReportTransitions = freezeTransitionTable<ReportStatus>({
   DRAFT: ["PUBLISHED", "ARCHIVED"],
   PUBLISHED: ["RESOLVED", "ARCHIVED"],
   RESOLVED: [],
   ARCHIVED: [],
-};
+});
 
-export const allowedItemTransitions: Readonly<Record<ItemStatus, readonly ItemStatus[]>> = {
+export const allowedItemTransitions = freezeTransitionTable<ItemStatus>({
   AVAILABLE: ["HELD"],
   HELD: ["RETURNED"],
   RETURNED: [],
-};
+});
 
-export const allowedClaimTransitions: Readonly<Record<ClaimStatus, readonly ClaimStatus[]>> = {
+export const allowedClaimTransitions = freezeTransitionTable<ClaimStatus>({
   EVIDENCE_REQUIRED: ["UNDER_REVIEW", "REJECTED", "LOCKED"],
   UNDER_REVIEW: ["APPROVED", "REJECTED"],
   REJECTED: [],
@@ -32,7 +39,7 @@ export const allowedClaimTransitions: Readonly<Record<ClaimStatus, readonly Clai
   APPROVED: ["PICKUP_READY"],
   PICKUP_READY: ["COLLECTED"],
   COLLECTED: [],
-};
+});
 
 function assertTransition(
   allowedTransitions: Readonly<Record<string, readonly string[]>>,

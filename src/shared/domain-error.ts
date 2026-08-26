@@ -1,4 +1,4 @@
-export const DOMAIN_ERROR_CODES = [
+export const DOMAIN_ERROR_CODES = Object.freeze([
   "AUTH_REQUIRED",
   "FORBIDDEN",
   "VALIDATION_FAILED",
@@ -9,11 +9,11 @@ export const DOMAIN_ERROR_CODES = [
   "CONFLICT",
   "INVALID_STATE_TRANSITION",
   "CONFIGURATION_ERROR",
-] as const;
+] as const);
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];
 
-const publicMessages: Record<DomainErrorCode, string> = {
+const publicMessages: Readonly<Record<DomainErrorCode, string>> = Object.freeze({
   AUTH_REQUIRED: "Authentication is required.",
   FORBIDDEN: "You are not allowed to perform this action.",
   VALIDATION_FAILED: "The submitted data is invalid.",
@@ -24,23 +24,33 @@ const publicMessages: Record<DomainErrorCode, string> = {
   CONFLICT: "The request conflicts with the current resource state.",
   INVALID_STATE_TRANSITION: "The requested state transition is not allowed.",
   CONFIGURATION_ERROR: "The service is not configured correctly.",
-};
+});
 
 export type DomainErrorJson = {
   error: { code: DomainErrorCode; message: string };
 };
 
 export class DomainError extends Error {
-  readonly code: DomainErrorCode;
+  #code!: DomainErrorCode;
 
   constructor(code: DomainErrorCode) {
-    super(publicMessages[code]);
+    super("Domain error");
     this.name = "DomainError";
-    this.code = code;
     Object.setPrototypeOf(this, DomainError.prototype);
+    if (!Object.prototype.hasOwnProperty.call(publicMessages, code)) {
+      throw new TypeError("Invalid domain error code");
+    }
+    this.#code = code;
+    this.message = publicMessages[code];
+    Object.freeze(this);
+  }
+
+  get code(): DomainErrorCode {
+    return this.#code;
   }
 
   toJSON(): DomainErrorJson {
-    return { error: { code: this.code, message: publicMessages[this.code] } };
+    const code = this.#code;
+    return { error: { code, message: publicMessages[code] } };
   }
 }

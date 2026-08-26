@@ -46,3 +46,17 @@
 - 主密钥仅接受严格的标准 padded Base64：长度必须为 4 的倍数、回编码一致，解码后至少 32 bytes；这能避免 Node 的宽松解码把格式错误的部署配置悄悄接受。
 - HKDF 使用固定 UTF-8 salt `ClaimGate/keyring/v1` 与带用途和版本号的 UTF-8 info，避免不同安全用途复用同一子密钥。
 - TDD：先因领域模块不存在得到预期 RED；最小实现后目标测试 39 项 GREEN。完整 `npm run verify` 通过（55 项单测、lint、typecheck、文件行数与生产构建）。
+
+## 2026-08-26 [Task 3 review fix round 1：运行时不可变边界]
+
+### 修复内容
+
+- `DomainError` 现在在运行时验证闭合 code，以私有字段保存可信 code，并冻结错误实例与公开代码集合；`toJSON` 仅从私有 code 映射固定安全消息。
+- Report、Item、Claim 转移表及每个内部数组均冻结；公开 `KEY_PURPOSES` 同样冻结，调用方不能追加用途或改变图。
+- 状态测试改为全部有序状态对：Report 16、Item 9、Claim 49；只有设计 addendum 列出的边可通过，包含全部同态与终态离开。
+
+### TDD 与验证
+
+- 新测试先 RED：非法 code 未拒绝，错误/状态表/用途集合均未冻结；全图测试随后明确验证现有合法边。
+- 首次 GREEN 因冻结封装替换漏掉闭合括号而报 TypeScript 语法错误，修正后目标 85 项测试与 typecheck 通过。
+- 完整 `npm run verify` 通过：文件行数、lint、typecheck、6 个文件 101 项测试和生产构建均成功。

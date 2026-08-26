@@ -6,6 +6,14 @@ import { createKeyring, KEY_PURPOSES } from "./keyring";
 const FIXED_MASTER_KEY = Buffer.alloc(32, 7).toString("base64");
 
 describe("用途隔离 keyring", () => {
+  it("冻结公开用途集合，调用方不能加入第五种用途", () => {
+    expect(Object.isFrozen(KEY_PURPOSES)).toBe(true);
+    expect(() => {
+      (KEY_PURPOSES as unknown as string[]).push("audit-log");
+    }).toThrow(TypeError);
+    expect(KEY_PURPOSES).toEqual(["evidence", "pickup-pass", "candidate-handle", "database-key-check"]);
+  });
+
   it("从同一固定主密钥稳定派生四个不同用途的 256-bit 子密钥", () => {
     const first = createKeyring(FIXED_MASTER_KEY);
     const second = createKeyring(FIXED_MASTER_KEY);
