@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPickupPassService } from "@/features/claims/pickup-pass-service";
 import { createKeyring } from "@/server/security/keyring";
@@ -22,6 +23,11 @@ function contains(value: unknown, needle: string, seen = new Set<object>()): boo
 }
 
 describe("pickup pass raw token leak canary", () => {
+  it("disables Playwright tracing for the visible credential handoff spec", () => {
+    const source = readFileSync("tests/e2e/role-resume-navigation.spec.ts", "utf8");
+    expect(source).toMatch(/test\.use\(\{\s*trace:\s*["']off["']\s*\}\)/);
+  });
+
   it("allows the token only in first issuance/client credential and nowhere durable or safe", () => {
     const logs = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);

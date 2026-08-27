@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { ClaimStepper } from "@/components/claim-stepper";
+import { DemoRoleBar } from "@/components/demo-role-bar";
 import { EvidenceForm } from "@/components/evidence-form";
 import { PickupPassPanel } from "@/components/pickup-pass-panel";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
@@ -11,6 +12,7 @@ import { createClaimService } from "@/features/claims/claim-service";
 import { createPickupPassService } from "@/features/claims/pickup-pass-service";
 import { mintReportCsrf, readClaimantPageSession } from "@/server/http/claimant-page-session";
 import { getHttpRuntime } from "@/server/http/runtime";
+import { mintRoleSwitchCsrf } from "@/server/http/role-switch-csrf";
 import { mintClaimReviewCsrf } from "@/server/http/staff-page-session";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +36,7 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
   } catch {
     redirect("/claimant");
   }
+  const roleSwitchCsrf = mintRoleSwitchCsrf({ runtime, session });
   const evidenceCsrf = claim.status === "EVIDENCE_REQUIRED"
     ? mintClaimReviewCsrf({
         runtime,
@@ -71,6 +74,12 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
         role: "CLAIMANT", page: "CLAIM", claimId,
         claimStatus: claim.status, claimVersion: claim.version,
       }} />
+      <DemoRoleBar
+        role={session.role}
+        expiresAt={session.expiresAt}
+        csrfToken={roleSwitchCsrf}
+        resumeClaimId={claimId}
+      />
       <main className="report-workspace claim-checkpoint">
         <Link className="workspace-back" href="/">← Return to ClaimGate desk</Link>
         <header className="workspace-header">

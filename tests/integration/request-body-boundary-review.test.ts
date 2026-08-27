@@ -219,6 +219,8 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
   it.each([
     "csrfToken=x&csrfToken=y&targetRole=STAFF",
     "csrfToken=x&targetRole=STAFF&userId=attacker",
+    "csrfToken=x&targetRole=STAFF&resumeClaimId=a&resumeClaimId=b",
+    "csrfToken=x&targetRole=STAFF&resumeClaimId=a&returnTo=https%3A%2F%2Fevil.test",
     "csrfToken=x&targetRole=CLAIMANT",
     "csrfToken=x&targetRole=STAFF&targetRole=CLAIMANT",
     "csrfToken=x",

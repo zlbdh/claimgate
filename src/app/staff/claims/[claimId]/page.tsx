@@ -4,12 +4,14 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { ClaimStepper } from "@/components/claim-stepper";
+import { DemoRoleBar } from "@/components/demo-role-bar";
 import { StaffDecisionForm } from "@/components/staff-decision-form";
 import { StaffHandoffForm } from "@/components/staff-handoff-form";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createAuditService } from "@/features/audit/audit-service";
 import { formatUtcTime } from "@/features/audit/staff-time";
 import { getHttpRuntime } from "@/server/http/runtime";
+import { mintRoleSwitchCsrf } from "@/server/http/role-switch-csrf";
 import { mintClaimReviewCsrf, readStaffPageSession } from "@/server/http/staff-page-session";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,7 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
   let review;
   try { review = createAuditService(runtime).getStaffReview(actor, claimId); }
   catch { redirect("/staff"); }
+  const roleSwitchCsrf = mintRoleSwitchCsrf({ runtime, session });
   const token = (routeKey: "api.staff.claims.approve" | "api.staff.claims.reject" | "api.staff.claims.unlock", action: string) =>
     mintClaimReviewCsrf({ runtime, session, routeKey, path: `/api/staff/claims/${claimId}/${action}` });
   const approveToken = review.claim.status === "UNDER_REVIEW" ? token("api.staff.claims.approve", "approve") : undefined;
@@ -49,6 +52,12 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
       role: "STAFF", page: "CLAIM", claimId,
       claimStatus: review.claim.status, claimVersion: review.claim.version,
     }} />
+    <DemoRoleBar
+      role={session.role}
+      expiresAt={session.expiresAt}
+      csrfToken={roleSwitchCsrf}
+      resumeClaimId={claimId}
+    />
     <main className="report-workspace staff-workspace">
       <Link className="workspace-back" href="/staff">← Staff review queue</Link>
       <header className="workspace-header">

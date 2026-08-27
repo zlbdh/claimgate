@@ -1,6 +1,7 @@
 import "server-only";
 
 import { DomainError } from "@/shared/domain-error";
+import { mintRoleSwitchCsrf } from "./role-switch-csrf";
 import { getHttpRuntime } from "./runtime";
 
 function looksLikeSessionEnvelope(value: string): boolean {
@@ -25,14 +26,6 @@ export function readHomeSession(cookieValue: string | undefined) {
     )) return null;
     throw error;
   }
-  const now = runtime.now();
-  const csrfToken = runtime.csrf.mint({
-    sessionId: session.sessionId,
-    method: "POST",
-    routeId: "api.demo.switch-role",
-    action: "role_switch",
-    expiresAt: Math.min(session.expiresAt, now + 10 * 60 * 1_000),
-    oneTime: true,
-  });
+  const csrfToken = mintRoleSwitchCsrf({ runtime, session });
   return Object.freeze({ session, csrfToken });
 }

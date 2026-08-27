@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { readPrivateEvidenceSeedForTest } from "@/test/private-evidence-seed-reader";
+import { switchRole } from "./claim-gate-harness";
 
 declare global {
   interface Window {
@@ -269,12 +270,11 @@ test("manual failure lock, one unlock, second lock, and password clearing bounda
   }
 
   await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
-  await page.getByRole("button", { name: "Switch to Staff role" }).click();
+  await switchRole(page, "Staff");
   await page.goto(`/staff/claims/${claimId}`);
   await page.getByRole("button", { name: "Unlock claim" }).click();
   await expect(page.locator(".status-stamp")).toContainText("EVIDENCE_REQUIRED");
-  await page.goto("/");
-  await page.getByRole("button", { name: "Switch to Claimant role" }).click();
+  await switchRole(page, "Claimant");
   await page.goto(claimPath);
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -283,7 +283,7 @@ test("manual failure lock, one unlock, second lock, and password clearing bounda
     else await expect(page.getByRole("heading", { name: "Evidence attempts locked" })).toBeVisible();
   }
   await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
-  await page.getByRole("button", { name: "Switch to Staff role" }).click();
+  await switchRole(page, "Staff");
   await page.goto(`/staff/claims/${claimId}`);
   await expect(page.getByRole("button", { name: "Unlock claim" })).toHaveCount(0);
   await expect(page.locator(".checkpoint-ledger")).toContainText("Unlock used1/1");

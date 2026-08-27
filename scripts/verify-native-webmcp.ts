@@ -208,7 +208,10 @@ async function main() {
     await expectTools(page, "UNDER_REVIEW Claimant", ["get_claim_status"]);
     html.push(await page.content());
     await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+    await page.waitForURL(`${origin}/`); await page.getByRole("button", { name: "Switch to Staff role" }).waitFor();
     await page.getByRole("button", { name: "Switch to Staff role" }).click();
+    await page.waitForURL(`${origin}/`);
+    await page.getByRole("link", { name: "Open Staff review desk" }).waitFor();
     await page.getByRole("link", { name: "Open Staff review desk" }).click();
     await expectTools(page, "Staff queue", ["list_pending_claims"]);
     rawResults.push((await execute(page, "list_pending_claims", { limit: 3 })).raw);
@@ -220,7 +223,9 @@ async function main() {
     await expectTools(page, "Staff APPROVED claim", ["get_claim_review_summary", "get_claim_status"]);
 
     await page.goto(origin);
+    await page.getByRole("button", { name: "Switch to Claimant role" }).waitFor();
     await page.getByRole("button", { name: "Switch to Claimant role" }).click();
+    await page.getByRole("link", { name: "Open Claimant report desk" }).waitFor();
     await page.goto(`${origin}/claimant/claims/${claimId}`);
     await expectTools(page, "Claimant APPROVED claim", ["get_claim_status", "get_pickup_instructions"]);
     rawResults.push((await execute(page, "get_pickup_instructions", { claimId })).raw);
@@ -233,7 +238,10 @@ async function main() {
       body: issueText, secret: pickupToken });
 
     await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+    await page.waitForURL(`${origin}/`);
+    await page.getByRole("button", { name: "Switch to Staff role" }).waitFor();
     await page.getByRole("button", { name: "Switch to Staff role" }).click();
+    await page.getByRole("link", { name: "Open Staff review desk" }).waitFor();
     await page.goto(`${origin}/staff/claims/${claimId}`);
     await expectTools(page, "Staff PICKUP_READY claim", ["get_claim_review_summary", "get_claim_status"]);
     await page.getByLabel("One-time pickup credential").fill(pickupToken);

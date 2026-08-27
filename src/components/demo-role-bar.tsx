@@ -4,10 +4,12 @@ export function DemoRoleBar({
   role,
   expiresAt,
   csrfToken,
+  resumeClaimId,
 }: {
   role: DemoRole;
   expiresAt: number;
   csrfToken: string;
+  resumeClaimId?: string;
 }) {
   const targetRole: DemoRole = role === "CLAIMANT" ? "STAFF" : "CLAIMANT";
   const roleLabel = role === "CLAIMANT" ? "Claimant" : "Staff";
@@ -22,6 +24,9 @@ export function DemoRoleBar({
       <form action="/api/demo/switch-role" method="post">
         <input name="csrfToken" type="hidden" value={csrfToken} />
         <input name="targetRole" type="hidden" value={targetRole} />
+        {resumeClaimId !== undefined && (
+          <input name="resumeClaimId" type="hidden" value={resumeClaimId} />
+        )}
         <button type="submit">Switch to {targetLabel} role</button>
       </form>
     </aside>

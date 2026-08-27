@@ -109,3 +109,13 @@
 - **根因**：Node ESM 将 `import.meta.url` 解析为真实 release 路径，而 `process.argv[1]` 保留 `/opt/claimgate/current` 符号链接路径，字符串比较误判脚本不是主入口。
 - **修复**：入口判断先用 `realpathSync()` 规范化启动路径；Linux 部署测试改为通过 `current` 符号链接启动并验证 socket 生命周期。
 - **教训**：凡是生产 unit 通过 release symlink 启动，必须用同一路径形态做真实 Linux 回归，不能只测容器内直路径。
+
+## 2026-08-28 [跨角色 Claim 上下文恢复]
+
+### 经验：角色切换应携带闭合领域标识，而不是通用返回地址
+
+- **记录**：[2026-08-28 04:51] by Codex — 记录可见演示链路断点及事务闭合方案，防止后续把导航便利性变成开放重定向或一次性令牌误消费。
+- **现象**：Staff 审批后，Claimant 无法从可见入口重新找到同一 Claim；Claimant 签发凭证后，该 Claim 又不在 Staff 待审队列，完整交接只能依赖手工输入 Claim URL。
+- **根因**：角色切换只在 Home 渲染且固定重定向 `/`，而审批、签发会按设计改变队列可见性；导航没有携带经过授权的 Claim 上下文。
+- **修复**：表单只新增可选 opaque `resumeClaimId`，严格接受 2 或 3 个字段；Claim 查询、目标 Claimant 所有权、nonce、额度和会话旋转在同一事务内完成，响应位置仅由数据库 Claim 和目标角色生成；两类 Claim 页面复用共享 CSRF helper 与角色栏，并用真实 Copy/Ctrl+V E2E 覆盖完整交接。
+- **教训**：跨身份恢复业务上下文时，只传闭合领域 ID，并在一次事务中先授权再派生站内路径；不要接受 `returnTo`、URL、查询串或片段，也不要让失败验证消耗可重试的一次性能力。

@@ -43,4 +43,20 @@ describe("Task 7 private page and physical route contracts", () => {
     ]) expect(registry).toContain(status);
     expect(registry).toMatch(/scope\.page === "CLAIM"[\s\S]*return \[\]/);
   });
+
+  it("mints the shared role-switch token and binds the current claim on both claim pages", () => {
+    const home = readFileSync("src/app/page.tsx", "utf8");
+    const claimPages = [
+      "src/app/claimant/claims/[claimId]/page.tsx",
+      "src/app/staff/claims/[claimId]/page.tsx",
+    ].map((path) => readFileSync(path, "utf8"));
+
+    expect(home).toContain("<DemoRoleBar");
+    expect(home).not.toContain("resumeClaimId=");
+    for (const source of claimPages) {
+      expect(source).toContain("mintRoleSwitchCsrf");
+      expect(source).toContain("<DemoRoleBar");
+      expect(source).toMatch(/resumeClaimId=\{claimId\}/);
+    }
+  });
 });
