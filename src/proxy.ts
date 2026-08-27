@@ -32,7 +32,12 @@ export function proxy(request: NextRequest) {
     request: { headers: requestHeaders },
   });
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
-  if (request.nextUrl.pathname === "/claimant" || request.nextUrl.pathname.startsWith("/claimant/")) {
+  if (
+    request.nextUrl.pathname === "/claimant"
+    || request.nextUrl.pathname.startsWith("/claimant/")
+    || request.nextUrl.pathname === "/staff"
+    || request.nextUrl.pathname.startsWith("/staff/")
+  ) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 

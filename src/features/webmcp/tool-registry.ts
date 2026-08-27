@@ -11,7 +11,17 @@ export type ClaimGateToolScope =
     candidateReportVersion?: number;
     candidateCount?: number;
   }>)
-  | (BaseScope & Readonly<{ page: "CLAIM"; claimStatus: "EVIDENCE_REQUIRED" }>)
+  | (BaseScope & Readonly<{
+    page: "CLAIM";
+    claimStatus:
+      | "EVIDENCE_REQUIRED"
+      | "UNDER_REVIEW"
+      | "REJECTED"
+      | "LOCKED"
+      | "APPROVED"
+      | "PICKUP_READY"
+      | "COLLECTED";
+  }>)
   | (BaseScope & Readonly<{ page: "OTHER" }>);
 
 export function toolNamesForScope(scope: ClaimGateToolScope): ClaimGateToolName[] {
@@ -19,6 +29,7 @@ export function toolNamesForScope(scope: ClaimGateToolScope): ClaimGateToolName[
   if (scope.page === "WORKSPACE") {
     return ["create_lost_report_draft", "list_my_reports"];
   }
+  if (scope.page === "CLAIM") return [];
   if (scope.page !== "REPORT") return [];
   if (scope.reportStatus === "DRAFT") return ["list_my_reports"];
   if (scope.reportStatus !== "PUBLISHED") return [];

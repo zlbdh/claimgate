@@ -80,9 +80,69 @@ export type ClaimRecord = {
   attempts: number;
   evidenceEligible: boolean;
   reviewerActorId: string | null;
+  rejectionReason: "STAFF_REJECTED" | "ITEM_HELD_BY_ANOTHER_CLAIM" | null;
+  unlockCount: number;
   passGeneration: number;
   version: number;
 };
+
+export type ClaimDecisionAck = Readonly<{
+  claimId: string;
+  status: ClaimStatus;
+  version: number;
+  failedAttempts: number;
+  evidenceEligible: boolean;
+  unlockCount: number;
+  rejectionReason: "STAFF_REJECTED" | "ITEM_HELD_BY_ANOTHER_CLAIM" | null;
+}>;
+
+export type ClaimEvent = Readonly<{
+  eventType:
+    | "EVIDENCE_INSUFFICIENT"
+    | "EVIDENCE_ELIGIBLE"
+    | "EVIDENCE_LOCKED"
+    | "UNLOCKED"
+    | "APPROVED"
+    | "STAFF_REJECTED"
+    | "COMPETING_REJECTED";
+  actorId: "claimant-demo" | "staff-demo";
+  result: "INSUFFICIENT" | "ELIGIBLE" | "LOCKED" | "UNLOCKED" | "APPROVED" | "REJECTED";
+  occurredAtMs: number;
+}>;
+
+export type ServerInternalClaimEvidenceContext = Readonly<{
+  itemId: string;
+  itemStatus: ItemStatus;
+  claim: Readonly<{
+    claimId: string;
+    claimantActorId: string;
+    status: ClaimStatus;
+    version: number;
+    failedAttempts: number;
+    evidenceEligible: boolean;
+    unlockCount: number;
+  }>;
+  slots: readonly import("@/features/evidence/evidence-service").ServerInternalEvidenceSlot[];
+}>;
+
+export type EvidenceOutcomeInput = Readonly<{
+  demoInstanceId: string;
+  claimId: string;
+  claimantActorId: string;
+  expectedClaimVersion: number;
+  outcome: "ELIGIBLE_FOR_REVIEW" | "INSUFFICIENT_EVIDENCE" | "LOCKED";
+}>;
+
+export type StaffClaimDecisionInput = Readonly<{
+  demoInstanceId: string;
+  claimId: string;
+  staffActorId: string;
+  expectedClaimVersion: number;
+}>;
+
+export type ApproveClaimInput = StaffClaimDecisionInput & Readonly<{
+  expectedItemVersion: number;
+}>;
 
 export type CreateClaimInput = {
   demoInstanceId: string;
@@ -118,7 +178,14 @@ export type AuditEvent = {
   occurredAtMs: number;
 };
 
-export type IdempotencyAction = "draft_create" | "draft_update" | "claim_stage";
+export type IdempotencyAction =
+  | "draft_create"
+  | "draft_update"
+  | "claim_stage"
+  | "evidence_submit"
+  | "claim_approve"
+  | "claim_reject"
+  | "claim_unlock";
 
 export type IdempotencyRequest = {
   demoInstanceId: string;
@@ -146,6 +213,16 @@ export type IdempotencyResult =
     claimId: string;
     status: "EVIDENCE_REQUIRED";
     version: number;
+  }
+  | {
+    kind: "claim_state_ack";
+    claimId: string;
+    status: ClaimStatus;
+    version: number;
+    failedAttempts: number;
+    evidenceEligible: boolean;
+    unlockCount: number;
+    rejectionReason: "STAFF_REJECTED" | "ITEM_HELD_BY_ANOTHER_CLAIM" | null;
   };
 
 export type RepositoryOptions = {

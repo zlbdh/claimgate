@@ -129,9 +129,19 @@ CREATE TABLE IF NOT EXISTS claims (
     'EVIDENCE_REQUIRED', 'UNDER_REVIEW', 'REJECTED', 'LOCKED',
     'APPROVED', 'PICKUP_READY', 'COLLECTED'
   )),
-  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK (
+    typeof(attempts) = 'integer' AND attempts BETWEEN 0 AND 3
+  ),
   evidence_eligible INTEGER NOT NULL DEFAULT 0 CHECK (evidence_eligible IN (0, 1)),
   reviewer_actor_id TEXT,
+  rejection_reason TEXT CHECK (
+    rejection_reason IS NULL OR rejection_reason IN (
+      'STAFF_REJECTED', 'ITEM_HELD_BY_ANOTHER_CLAIM'
+    )
+  ),
+  unlock_count INTEGER NOT NULL DEFAULT 0 CHECK (
+    typeof(unlock_count) = 'integer' AND unlock_count BETWEEN 0 AND 1
+  ),
   pickup_pass_salt BLOB,
   pickup_pass_digest BLOB,
   pickup_pass_expires_at_ms,
@@ -168,9 +178,140 @@ CREATE INDEX IF NOT EXISTS claims_report_idx
   ON claims(demo_instance_id, report_id);
 CREATE INDEX IF NOT EXISTS claims_item_idx
   ON claims(demo_instance_id, found_item_id);
-CREATE UNIQUE INDEX IF NOT EXISTS claims_single_approved_item_idx
+CREATE UNIQUE INDEX IF NOT EXISTS claims_single_winner_item_idx
   ON claims(demo_instance_id, found_item_id)
-  WHERE status IN ('APPROVED', 'PICKUP_READY');
+  WHERE status IN ('APPROVED', 'PICKUP_READY', 'COLLECTED');
+
+CREATE TRIGGER IF NOT EXISTS claims_v5_invariants_insert
+BEFORE INSERT ON claims
+WHEN COALESCE((
+  typeof(NEW.attempts) = 'integer' AND NEW.attempts BETWEEN 0 AND 3
+  AND typeof(NEW.evidence_eligible) = 'integer' AND NEW.evidence_eligible IN (0, 1)
+  AND typeof(NEW.unlock_count) = 'integer' AND NEW.unlock_count BETWEEN 0 AND 1
+  AND (NEW.reviewer_actor_id IS NULL OR NEW.reviewer_actor_id = 'staff-demo')
+  AND (
+    (NEW.status = 'EVIDENCE_REQUIRED' AND NEW.attempts BETWEEN 0 AND 2
+      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'LOCKED' AND NEW.attempts = 3
+      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'UNDER_REVIEW' AND NEW.attempts BETWEEN 0 AND 2
+      AND NEW.evidence_eligible = 1 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status IN ('APPROVED', 'PICKUP_READY', 'COLLECTED')
+      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
+      AND NEW.reviewer_actor_id = 'staff-demo' AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'REJECTED' AND NEW.rejection_reason = 'STAFF_REJECTED'
+      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
+      AND NEW.reviewer_actor_id = 'staff-demo')
+    OR (NEW.status = 'REJECTED'
+      AND NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
+      AND NEW.reviewer_actor_id IS NULL
+      AND ((NEW.evidence_eligible = 0 AND NEW.attempts BETWEEN 0 AND 3)
+        OR (NEW.evidence_eligible = 1 AND NEW.attempts BETWEEN 0 AND 2)))
+  )
+), 0) = 0
+BEGIN
+  SELECT RAISE(ABORT, 'invalid claim v5 state');
+END;
+
+CREATE TRIGGER IF NOT EXISTS claims_v5_invariants_update
+BEFORE UPDATE ON claims
+WHEN COALESCE((
+  typeof(NEW.attempts) = 'integer' AND NEW.attempts BETWEEN 0 AND 3
+  AND typeof(NEW.evidence_eligible) = 'integer' AND NEW.evidence_eligible IN (0, 1)
+  AND typeof(NEW.unlock_count) = 'integer' AND NEW.unlock_count BETWEEN 0 AND 1
+  AND (NEW.reviewer_actor_id IS NULL OR NEW.reviewer_actor_id = 'staff-demo')
+  AND (
+    (NEW.status = 'EVIDENCE_REQUIRED' AND NEW.attempts BETWEEN 0 AND 2
+      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'LOCKED' AND NEW.attempts = 3
+      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'UNDER_REVIEW' AND NEW.attempts BETWEEN 0 AND 2
+      AND NEW.evidence_eligible = 1 AND NEW.reviewer_actor_id IS NULL
+      AND NEW.rejection_reason IS NULL)
+    OR (NEW.status IN ('APPROVED', 'PICKUP_READY', 'COLLECTED')
+      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
+      AND NEW.reviewer_actor_id = 'staff-demo' AND NEW.rejection_reason IS NULL)
+    OR (NEW.status = 'REJECTED' AND NEW.rejection_reason = 'STAFF_REJECTED'
+      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
+      AND NEW.reviewer_actor_id = 'staff-demo')
+    OR (NEW.status = 'REJECTED'
+      AND NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
+      AND NEW.reviewer_actor_id IS NULL
+      AND ((NEW.evidence_eligible = 0 AND NEW.attempts BETWEEN 0 AND 3)
+        OR (NEW.evidence_eligible = 1 AND NEW.attempts BETWEEN 0 AND 2)))
+  )
+), 0) = 0
+BEGIN
+  SELECT RAISE(ABORT, 'invalid claim v5 state');
+END;
+
+CREATE TRIGGER IF NOT EXISTS claims_v5_transition_update
+BEFORE UPDATE OF status ON claims
+WHEN NEW.status <> OLD.status AND NOT (
+  (OLD.status = 'EVIDENCE_REQUIRED' AND NEW.status IN ('UNDER_REVIEW', 'LOCKED', 'REJECTED'))
+  OR (OLD.status = 'UNDER_REVIEW' AND NEW.status IN ('APPROVED', 'REJECTED'))
+  OR (OLD.status = 'LOCKED' AND NEW.status IN ('EVIDENCE_REQUIRED', 'REJECTED'))
+  OR (OLD.status = 'APPROVED' AND NEW.status = 'PICKUP_READY')
+  OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'COLLECTED')
+)
+BEGIN
+  SELECT RAISE(ABORT, 'invalid claim v5 transition');
+END;
+
+CREATE TRIGGER IF NOT EXISTS claims_v5_unlock_update
+BEFORE UPDATE ON claims
+WHEN NEW.unlock_count < OLD.unlock_count
+  OR NEW.unlock_count > OLD.unlock_count + 1
+  OR (NEW.unlock_count <> OLD.unlock_count AND NOT (
+    OLD.unlock_count = 0 AND NEW.unlock_count = 1
+    AND OLD.status = 'LOCKED' AND OLD.attempts = 3
+    AND NEW.status = 'EVIDENCE_REQUIRED' AND NEW.attempts = 0
+  ))
+  OR (OLD.status = 'LOCKED' AND NEW.status = 'EVIDENCE_REQUIRED' AND NOT (
+    OLD.unlock_count = 0 AND NEW.unlock_count = 1
+    AND OLD.attempts = 3 AND NEW.attempts = 0
+  ))
+BEGIN
+  SELECT RAISE(ABORT, 'invalid claim unlock transition');
+END;
+
+CREATE TABLE IF NOT EXISTS claim_events (
+  demo_instance_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  claim_id TEXT NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'EVIDENCE_INSUFFICIENT', 'EVIDENCE_ELIGIBLE', 'EVIDENCE_LOCKED',
+    'UNLOCKED', 'APPROVED', 'STAFF_REJECTED', 'COMPETING_REJECTED'
+  )),
+  actor_id TEXT NOT NULL CHECK (actor_id IN ('claimant-demo', 'staff-demo')),
+  result TEXT NOT NULL CHECK (result IN (
+    'INSUFFICIENT', 'ELIGIBLE', 'LOCKED', 'UNLOCKED', 'APPROVED', 'REJECTED'
+  )),
+  occurred_at_ms INTEGER NOT NULL CHECK (
+    typeof(occurred_at_ms) = 'integer'
+    AND occurred_at_ms BETWEEN 0 AND 9007199254740991
+  ),
+  PRIMARY KEY (demo_instance_id, id),
+  FOREIGN KEY (demo_instance_id, claim_id)
+    REFERENCES claims(demo_instance_id, id) ON DELETE CASCADE,
+  CHECK (
+    (event_type = 'EVIDENCE_INSUFFICIENT' AND actor_id = 'claimant-demo' AND result = 'INSUFFICIENT')
+    OR (event_type = 'EVIDENCE_ELIGIBLE' AND actor_id = 'claimant-demo' AND result = 'ELIGIBLE')
+    OR (event_type = 'EVIDENCE_LOCKED' AND actor_id = 'claimant-demo' AND result = 'LOCKED')
+    OR (event_type = 'UNLOCKED' AND actor_id = 'staff-demo' AND result = 'UNLOCKED')
+    OR (event_type = 'APPROVED' AND actor_id = 'staff-demo' AND result = 'APPROVED')
+    OR (event_type IN ('STAFF_REJECTED', 'COMPETING_REJECTED')
+      AND actor_id = 'staff-demo' AND result = 'REJECTED')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS claim_events_claim_time_idx
+  ON claim_events(demo_instance_id, claim_id, occurred_at_ms, id);
 
 CREATE TABLE IF NOT EXISTS audit_events (
   demo_instance_id TEXT NOT NULL,
@@ -253,7 +394,10 @@ END;
 CREATE TABLE IF NOT EXISTS idempotency_records (
   demo_instance_id TEXT NOT NULL,
   actor_id TEXT NOT NULL CHECK (actor_id IN ('claimant-demo', 'staff-demo')),
-  action TEXT NOT NULL CHECK (action IN ('draft_create', 'draft_update', 'claim_stage')),
+  action TEXT NOT NULL CHECK (action IN (
+    'draft_create', 'draft_update', 'claim_stage',
+    'evidence_submit', 'claim_approve', 'claim_reject', 'claim_unlock'
+  )),
   key_digest BLOB NOT NULL CHECK (typeof(key_digest) = 'blob' AND length(key_digest) = 32),
   request_fingerprint_digest BLOB NOT NULL CHECK (
     typeof(request_fingerprint_digest) = 'blob' AND length(request_fingerprint_digest) = 32

@@ -3,10 +3,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { WebMcpPageScope } from "@/components/webmcp-provider";
+import { ClaimStepper } from "@/components/claim-stepper";
+import { EvidenceForm } from "@/components/evidence-form";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createClaimService } from "@/features/claims/claim-service";
 import { readClaimantPageSession } from "@/server/http/claimant-page-session";
 import { getHttpRuntime } from "@/server/http/runtime";
+import { mintClaimReviewCsrf } from "@/server/http/staff-page-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -29,34 +32,62 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
   } catch {
     redirect("/claimant");
   }
+  const evidenceCsrf = claim.status === "EVIDENCE_REQUIRED"
+    ? mintClaimReviewCsrf({
+        runtime,
+        session,
+        routeKey: "api.claims.evidence",
+        path: `/api/claims/${claimId}/evidence`,
+      })
+    : undefined;
+  const heading = claim.status === "EVIDENCE_REQUIRED" ? "Evidence checkpoint"
+    : claim.status === "UNDER_REVIEW" ? "Waiting for Staff review"
+      : claim.status === "LOCKED" ? "Evidence attempts locked"
+        : "Claim status";
   return (
     <>
-      <WebMcpPageScope scope={{ role: "CLAIMANT", page: "CLAIM", claimStatus: "EVIDENCE_REQUIRED" }} />
+      <WebMcpPageScope scope={{ role: "CLAIMANT", page: "CLAIM", claimStatus: claim.status }} />
       <main className="report-workspace claim-checkpoint">
         <Link className="workspace-back" href="/">← Return to ClaimGate desk</Link>
         <header className="workspace-header">
           <div>
             <p className="workspace-kicker">Step 03 · Prove</p>
-            <h1>Evidence checkpoint</h1>
-            <p>Your candidate is staged. The desk has not approved or released the item.</p>
+            <h1>{heading}</h1>
+            <p>The desk reveals only aggregate claim state; private evidence is never shown here.</p>
           </div>
-          <span className="status-stamp status-evidence-required">EVIDENCE REQUIRED</span>
+          <span className={`status-stamp status-${claim.status.toLowerCase()}`}>{claim.status}</span>
         </header>
-        <nav className="claim-steps" aria-label="Claim progress">
-          <strong>Report</strong><strong>Match</strong><strong aria-current="step">Prove</strong><span>Review</span><span>Pickup</span>
-        </nav>
+        <ClaimStepper status={claim.status} />
         <section className="workspace-panel checkpoint-panel" aria-labelledby="checkpoint-title">
           <p className="workspace-kicker">Private human checkpoint</p>
-          <h2 id="checkpoint-title">Prepare for a later manual evidence step</h2>
+          <h2 id="checkpoint-title">Claim review state</h2>
           <p>{claim.nextStep}</p>
           <dl className="checkpoint-ledger">
-            <div><dt>Status</dt><dd>Evidence required</dd></div>
-            <div><dt>Attempts used</dt><dd>{claim.attempts}</dd></div>
+            <div><dt>Status</dt><dd>{claim.status}</dd></div>
+            <div><dt>Failed attempts</dt><dd>{claim.failedAttempts}</dd></div>
             <div><dt>Attempts remaining</dt><dd>{claim.remainingAttempts}</dd></div>
           </dl>
-          <p className="workspace-state" role="status">
-            No evidence form is available yet. A person will guide the private verification step later.
-          </p>
+          {claim.status === "EVIDENCE_REQUIRED" && evidenceCsrf && (
+            <EvidenceForm
+              key={`${claimId}:${claim.version}`}
+              claimId={claimId}
+              expectedVersion={claim.version}
+              csrfToken={evidenceCsrf}
+            />
+          )}
+          {claim.status === "LOCKED" && (
+            <p className="workspace-state" role="status">
+              {claim.unlockCount === 0
+                ? "A Staff reviewer may unlock this claim once."
+                : "The one Staff unlock has already been used; this lock is final."}
+            </p>
+          )}
+          {claim.status === "UNDER_REVIEW" && (
+            <p className="workspace-state" role="status">Evidence is eligible and waiting for Staff review.</p>
+          )}
+          {["REJECTED", "APPROVED", "PICKUP_READY", "COLLECTED"].includes(claim.status) && (
+            <p className="workspace-state" role="status">This claim is read-only at its current stage.</p>
+          )}
         </section>
       </main>
     </>

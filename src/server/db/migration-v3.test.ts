@@ -67,7 +67,7 @@ function createV2Database(injectFailure = false) {
       demo_instance_id, id, report_id, found_item_id, claimant_actor_id,
       status, attempts, evidence_eligible, pass_generation, version
     ) VALUES ('demo-v2', 'claim-v2', 'report-v2', 'item-v2', 'claimant-demo',
-      'EVIDENCE_REQUIRED', 0, 1, 0, 4);
+      'EVIDENCE_REQUIRED', 0, 0, 0, 4);
     INSERT INTO audit_events (
       demo_instance_id, id, resource_type, report_id, claim_id,
       action, actor_id, result, occurred_at_ms
@@ -92,7 +92,7 @@ function createV2Database(injectFailure = false) {
     database.exec(`
       CREATE TRIGGER fail_v4_authenticator
       BEFORE UPDATE OF schema_version ON database_metadata
-      WHEN NEW.schema_version = 4
+      WHEN NEW.schema_version = 5
       BEGIN SELECT RAISE(ABORT, 'injected migration failure'); END;
     `);
   }
@@ -105,7 +105,7 @@ function createV2Database(injectFailure = false) {
   return { databasePath, databaseUuid, salt, before };
 }
 
-describe("数据库 schema v2 到 v4 preserving migration", () => {
+describe("数据库 schema v2 到 v5 preserving migration", () => {
   it("验证 v2 authenticator 后保留全部业务行、UUID/salt，仅新增全局 limiter", () => {
     const legacy = createV2Database();
     const database = initializeDatabase({
@@ -117,7 +117,7 @@ describe("数据库 schema v2 到 v4 preserving migration", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 4, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     for (const [table, count] of Object.entries(legacy.before)) {
       expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual(count);

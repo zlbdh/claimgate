@@ -21,6 +21,37 @@ function reportInput(demoInstanceId: string, suffix = "") {
   };
 }
 
+function forceValidClaimState(
+  database: TestDatabase["database"],
+  instanceId: string,
+  claimId: string,
+  status: "EVIDENCE_REQUIRED" | "UNDER_REVIEW" | "LOCKED" | "APPROVED" | "PICKUP_READY" | "REJECTED" | "COLLECTED",
+): void {
+  if (status === "EVIDENCE_REQUIRED") return;
+  if (status === "LOCKED") {
+    database.prepare(`UPDATE claims SET status = 'LOCKED', attempts = 3
+      WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+    return;
+  }
+  database.prepare(`UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+    WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+  if (status === "UNDER_REVIEW") return;
+  if (status === "REJECTED") {
+    database.prepare(`UPDATE claims SET status = 'REJECTED', reviewer_actor_id = 'staff-demo',
+      rejection_reason = 'STAFF_REJECTED' WHERE demo_instance_id = ? AND id = ?`)
+      .run(instanceId, claimId);
+    return;
+  }
+  database.prepare(`UPDATE claims SET status = 'APPROVED', reviewer_actor_id = 'staff-demo'
+    WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+  if (status === "APPROVED") return;
+  database.prepare(`UPDATE claims SET status = 'PICKUP_READY'
+    WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+  if (status === "PICKUP_READY") return;
+  database.prepare(`UPDATE claims SET status = 'COLLECTED'
+    WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+}
+
 describe("报告 owner、active claim 与保留字段后果边界", () => {
   it("非 owner 不能 publish/archive，且版本、状态和 audit 全回滚", () => {
     testDatabase = createTestDatabase();
@@ -67,8 +98,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
         inventoryItemId: items[index]!.inventoryItemId,
         claimantActorId: "claimant-demo",
       });
-      database.prepare("UPDATE claims SET status = ? WHERE demo_instance_id = ? AND id = ?")
-        .run(status, instance.demoInstanceId, claim.claimId);
+      forceValidClaimState(database, instance.demoInstanceId, claim.claimId, status);
       const auditCount = repository.listAuditEvents(instance.demoInstanceId).length;
 
       expect(() => repository.archiveLostReport({
@@ -104,8 +134,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
         inventoryItemId: item.inventoryItemId,
         claimantActorId: "claimant-demo",
       });
-      database.prepare("UPDATE claims SET status = ? WHERE demo_instance_id = ? AND id = ?")
-        .run(terminalStatus, instance.demoInstanceId, claim.claimId);
+      forceValidClaimState(database, instance.demoInstanceId, claim.claimId, terminalStatus);
 
       expect(repository.archiveLostReport({
         demoInstanceId: instance.demoInstanceId,
@@ -147,7 +176,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
       claimId: claim.claimId,
       expectedVersion: claim.version,
       actorId: "claimant-demo",
-      patch: { attempts: 1, evidenceEligible: true },
+      patch: { status: "UNDER_REVIEW", attempts: 1, evidenceEligible: true },
     })).toMatchObject({
       attempts: 1,
       evidenceEligible: true,

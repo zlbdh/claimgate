@@ -13,7 +13,7 @@ const EXPECTED_INSTANCE_POLICIES = Object.freeze({
   report_publish: { limit: 5, windowMs: 600_000 },
   report_archive: { limit: 5, windowMs: 600_000 },
   claim_stage: { limit: 10, windowMs: 600_000 },
-  evidence_submit: { limit: 5, windowMs: 600_000 },
+  evidence_submit: { limit: 10, windowMs: 600_000 },
   claim_approve: { limit: 10, windowMs: 600_000 },
   claim_reject: { limit: 10, windowMs: 600_000 },
   claim_unlock: { limit: 10, windowMs: 600_000 },
@@ -81,6 +81,26 @@ describe("冻结的完整限流策略矩阵", () => {
         method: "POST", path: "/api/claims", action: "claim_stage",
         allowedRoles: ["CLAIMANT"], requiresOneTime: false,
         ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_stage,
+      },
+      "api.claims.evidence": {
+        method: "POST", path: "/api/claims/:claimId/evidence", action: "evidence_submit",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.evidence_submit,
+      },
+      "api.staff.claims.approve": {
+        method: "POST", path: "/api/staff/claims/:claimId/approve", action: "claim_approve",
+        allowedRoles: ["STAFF"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_approve,
+      },
+      "api.staff.claims.reject": {
+        method: "POST", path: "/api/staff/claims/:claimId/reject", action: "claim_reject",
+        allowedRoles: ["STAFF"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_reject,
+      },
+      "api.staff.claims.unlock": {
+        method: "POST", path: "/api/staff/claims/:claimId/unlock", action: "claim_unlock",
+        allowedRoles: ["STAFF"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_unlock,
       },
     });
     expect(Object.isFrozen(AUTHENTICATED_ROUTE_REGISTRY)).toBe(true);

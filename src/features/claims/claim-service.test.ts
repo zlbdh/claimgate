@@ -72,10 +72,13 @@ describe("ClaimService staging boundary", () => {
       claimId: result.claimId,
       reportId: value.reportId,
       status: "EVIDENCE_REQUIRED",
-      attempts: 0,
+      failedAttempts: 0,
       remainingAttempts: 3,
+      evidenceEligible: false,
+      unlockCount: 0,
+      rejectionReason: null,
       version: 1,
-      nextStep: "Private evidence is a later manual step. No evidence is requested on this checkpoint.",
+      nextStep: "Submit private evidence for aggregate verification.",
     });
     const serialized = JSON.stringify(result);
     const internalIds = testDatabase!.repository.listServerInternalFoundItems(value.context.demoInstanceId)

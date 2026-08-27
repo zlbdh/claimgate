@@ -6,10 +6,12 @@ import type Database from "better-sqlite3";
 import type { Keyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
 import { openDatabaseConnection } from "./connection";
+import { addV5ClaimAndIdempotencySchema } from "./migration-v5-schema";
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const LEGACY_SCHEMA_VERSION = 1;
 const PRESERVED_SCHEMA_VERSIONS = Object.freeze([2, 3] as const);
+const V4_SCHEMA_VERSION = 4;
 const SCHEMA_SQL = readFileSync(join(process.cwd(), "src/server/db/schema.sql"), "utf8");
 
 type MetadataRow = {
@@ -92,6 +94,7 @@ function dropDisposableBusinessSchema(database: Database.Database): void {
     DROP TABLE IF EXISTS rate_limit_high_water;
     DROP TABLE IF EXISTS rate_limit_buckets;
     DROP TABLE IF EXISTS idempotency_records;
+    DROP TABLE IF EXISTS claim_events;
     DROP TABLE IF EXISTS audit_events;
     DROP TABLE IF EXISTS claims;
     DROP TABLE IF EXISTS lost_reports;
@@ -101,7 +104,7 @@ function dropDisposableBusinessSchema(database: Database.Database): void {
   `);
 }
 
-function migrateV1ToV4(
+function migrateV1ToV5(
   database: Database.Database,
   keyring: Keyring,
   metadata: MetadataRow,
@@ -130,7 +133,7 @@ function migrateV1ToV4(
   database.exec("DROP TABLE database_metadata_v1");
 }
 
-function migratePreservingToV4(
+function migratePreservingToV5(
   database: Database.Database,
   keyring: Keyring,
   metadata: MetadataRow,
@@ -148,7 +151,7 @@ function migratePreservingToV4(
     ALTER TABLE item_evidence_slots RENAME TO item_evidence_slots_legacy;
     DROP INDEX item_evidence_slots_item_idx;
   `);
-  database.exec(SCHEMA_SQL);
+  addV5ClaimAndIdempotencySchema(database, SCHEMA_SQL);
   database.exec(`
     INSERT INTO item_evidence_slots (
       demo_instance_id, found_item_id, slot, salt, digest
@@ -172,6 +175,27 @@ function migratePreservingToV4(
   `).run(SCHEMA_VERSION, authenticator, metadata.schemaVersion);
 }
 
+function migrateV4ToV5(
+  database: Database.Database,
+  keyring: Keyring,
+  metadata: MetadataRow,
+): void {
+  verifyMetadata(metadata, keyring, V4_SCHEMA_VERSION);
+  addV5ClaimAndIdempotencySchema(database, SCHEMA_SQL);
+  assertForeignKeysClean(database);
+  const authenticator = makeAuthenticator(
+    keyring,
+    SCHEMA_VERSION,
+    metadata.databaseUuid,
+    metadata.keyCheckSalt,
+  );
+  database.prepare(`
+    UPDATE database_metadata
+    SET schema_version = ?, key_check_authenticator = ?
+    WHERE singleton_id = 1 AND schema_version = ?
+  `).run(SCHEMA_VERSION, authenticator, V4_SCHEMA_VERSION);
+}
+
 function migrateDatabase(
   database: Database.Database,
   keyring: Keyring,
@@ -181,11 +205,15 @@ function migrateDatabase(
     const existing = readMetadata(database);
     if (existing) {
       if (existing.schemaVersion === LEGACY_SCHEMA_VERSION) {
-        migrateV1ToV4(database, keyring, existing);
+        migrateV1ToV5(database, keyring, existing);
         return;
       }
       if (PRESERVED_SCHEMA_VERSIONS.includes(existing.schemaVersion as 2 | 3)) {
-        migratePreservingToV4(database, keyring, existing);
+        migratePreservingToV5(database, keyring, existing);
+        return;
+      }
+      if (existing.schemaVersion === V4_SCHEMA_VERSION) {
+        migrateV4ToV5(database, keyring, existing);
         return;
       }
       verifyMetadata(existing, keyring, SCHEMA_VERSION);

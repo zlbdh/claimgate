@@ -9,7 +9,7 @@ const policies: Record<RateLimitAction, RateLimitPolicy> = {
   report_publish: { limit: 5, windowMs: 600_000 },
   report_archive: { limit: 5, windowMs: 600_000 },
   claim_stage: { limit: 10, windowMs: 600_000 },
-  evidence_submit: { limit: 5, windowMs: 600_000 },
+  evidence_submit: { limit: 10, windowMs: 600_000 },
   claim_approve: { limit: 10, windowMs: 600_000 },
   claim_reject: { limit: 10, windowMs: 600_000 },
   claim_unlock: { limit: 10, windowMs: 600_000 },

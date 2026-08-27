@@ -31,7 +31,8 @@ function toRecord(row: ClaimRow): ClaimRecord {
 const CLAIM_SELECT = `
   SELECT id AS claimId, report_id AS reportId, claimant_actor_id AS claimantActorId,
     status, attempts, evidence_eligible AS evidenceEligible,
-    reviewer_actor_id AS reviewerActorId, pass_generation AS passGeneration, version
+    reviewer_actor_id AS reviewerActorId, rejection_reason AS rejectionReason,
+    unlock_count AS unlockCount, pass_generation AS passGeneration, version
   FROM claims
 `;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAuthenticatedRoute } from "./authenticated-route-registry";
+import { getAuthenticatedRoute, resolveAuthenticatedRoute } from "./authenticated-route-registry";
 
 describe("authenticated dynamic route registry", () => {
   it("extracts one bounded canonical report segment from the request path", () => {
@@ -61,5 +61,31 @@ describe("authenticated dynamic route registry", () => {
       new Request("https://example.test/api/reports/r1", { method: "GET" }),
       "api.reports.update",
     )).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
+  });
+
+  it.each([
+    ["api.claims.evidence", "/api/claims/claim_A/evidence", "evidence_submit", "CLAIMANT"],
+    ["api.staff.claims.approve", "/api/staff/claims/claim_A/approve", "claim_approve", "STAFF"],
+    ["api.staff.claims.reject", "/api/staff/claims/claim_A/reject", "claim_reject", "STAFF"],
+    ["api.staff.claims.unlock", "/api/staff/claims/claim_A/unlock", "claim_unlock", "STAFF"],
+  ] as const)("binds %s to one concrete one-time role/action path", (key, path, action, role) => {
+    const route = getAuthenticatedRoute(key);
+    const resolved = resolveAuthenticatedRoute(
+      new Request(`https://example.test${path}`, { method: "POST" }),
+      key,
+    );
+    expect(route).toMatchObject({
+      method: "POST",
+      action,
+      allowedRoles: [role],
+      requiresOneTime: true,
+      ratePolicy: expect.any(Object),
+    });
+    expect(resolved).toEqual({
+      canonicalPath: path,
+      csrfRouteId: path.slice(1),
+      params: { claimId: "claim_A" },
+      query: {},
+    });
   });
 });

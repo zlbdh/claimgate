@@ -209,7 +209,7 @@ describe("事务、范围、版本与幂等契约", () => {
       demoInstanceId: instance.demoInstanceId,
       claimId: claim.claimId,
       expectedVersion: 1,
-      patch: { status: "UNDER_REVIEW" },
+      patch: { status: "UNDER_REVIEW", evidenceEligible: true },
       actorId: "claimant-demo",
     }).version).toBe(2);
   });

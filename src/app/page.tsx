@@ -37,6 +37,9 @@ export default async function Home() {
           {authenticated.session.role === "CLAIMANT" && (
             <p><Link className="primary-link" href="/claimant">Open Claimant report desk</Link></p>
           )}
+          {authenticated.session.role === "STAFF" && (
+            <p><Link className="primary-link" href="/staff">Open Staff review desk</Link></p>
+          )}
         </>
       ) : (
         <section className="start-demo" aria-labelledby="start-demo-title">

@@ -2,11 +2,15 @@ import { randomUUID } from "node:crypto";
 import { DomainError } from "@/shared/domain-error";
 import type {
   AuditEvent,
+  ApproveClaimInput,
+  ClaimDecisionAck,
+  ClaimEvent,
   ClaimRecord,
   ConsumeActionNonceInput,
   CreateClaimInput,
   CreateLostReportInput,
   DemoInstance,
+  EvidenceOutcomeInput,
   IdempotencyRequest,
   IdempotencyResult,
   LostReportRecord,
@@ -15,6 +19,8 @@ import type {
   RepositoryOptions,
   ServerInternalFoundItem,
   ServerInternalFoundItemMutationResult,
+  ServerInternalClaimEvidenceContext,
+  StaffClaimDecisionInput,
   TransitionLostReportInput,
   UpdateClaimInput,
   UpdateFoundItemInput,
@@ -22,6 +28,22 @@ import type {
 } from "./repository-types";
 import type { ServerInternalEvidenceSlot } from "@/features/evidence/evidence-service";
 import { consumeActionNonce as consumeNonce } from "./action-nonce-repository";
+import { listClaimEvents as readClaimEvents } from "./claim-event-repository";
+import {
+  getStaffClaimReview as readStaffClaimReview,
+  listClaimTimeline as readClaimTimeline,
+  listStaffReviewQueue as readStaffReviewQueue,
+  type ClaimTimelineEntry,
+  type StaffClaimReview,
+  type StaffQueueEntry,
+} from "./claim-read-repository";
+import {
+  approveClaim as approveClaimDecision,
+  getServerInternalClaimEvidenceContext as readClaimEvidenceContext,
+  recordEvidenceOutcome as applyEvidenceOutcome,
+  rejectClaim as rejectClaimDecision,
+  unlockClaim as unlockClaimDecision,
+} from "./claim-decision-repository";
 import { listAuditEvents as readAuditEvents } from "./audit-repository";
 import {
   createDemoInstance as createInstance,
@@ -63,6 +85,18 @@ export type ClaimGateRepository = {
   createClaim(input: CreateClaimInput): ClaimRecord;
   getClaim(demoInstanceId: string, claimId: string): ClaimRecord;
   updateClaim(input: UpdateClaimInput): ClaimRecord;
+  getServerInternalClaimEvidenceContext(
+    demoInstanceId: string,
+    claimId: string,
+  ): ServerInternalClaimEvidenceContext;
+  recordEvidenceOutcome(input: EvidenceOutcomeInput): ClaimDecisionAck;
+  approveClaim(input: ApproveClaimInput): ClaimDecisionAck;
+  rejectClaim(input: StaffClaimDecisionInput): ClaimDecisionAck;
+  unlockClaim(input: StaffClaimDecisionInput): ClaimDecisionAck;
+  listClaimEvents(demoInstanceId: string, claimId: string, limit?: number): ClaimEvent[];
+  listStaffReviewQueue(demoInstanceId: string, limit: number): StaffQueueEntry[];
+  getStaffClaimReview(demoInstanceId: string, claimId: string): StaffClaimReview;
+  listClaimTimeline(demoInstanceId: string, claimId: string, limit: number): ClaimTimelineEntry[];
   listAuditEvents(demoInstanceId: string): AuditEvent[];
   runIdempotent(request: IdempotencyRequest, mutation: () => IdempotencyResult): IdempotencyResult;
   consumeActionNonce(input: ConsumeActionNonceInput): void;
@@ -106,6 +140,28 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
     createClaim: (input) => { assertActive(); return insertClaim(context, input); },
     getClaim: (instanceId, claimId) => { assertActive(); return readClaim(context, instanceId, claimId); },
     updateClaim: (input) => { assertActive(); return mutateClaim(context, input); },
+    getServerInternalClaimEvidenceContext: (instanceId, claimId) => {
+      assertActive();
+      return readClaimEvidenceContext(context, instanceId, claimId);
+    },
+    recordEvidenceOutcome: (input) => { assertActive(); return applyEvidenceOutcome(context, input); },
+    approveClaim: (input) => { assertActive(); return approveClaimDecision(context, input); },
+    rejectClaim: (input) => { assertActive(); return rejectClaimDecision(context, input); },
+    unlockClaim: (input) => { assertActive(); return unlockClaimDecision(context, input); },
+    listClaimEvents: (instanceId, claimId, limit) => {
+      assertActive();
+      readClaim(context, instanceId, claimId);
+      return readClaimEvents(context, instanceId, claimId, limit);
+    },
+    listStaffReviewQueue: (instanceId, limit) => {
+      assertActive(); return readStaffReviewQueue(context, instanceId, limit);
+    },
+    getStaffClaimReview: (instanceId, claimId) => {
+      assertActive(); return readStaffClaimReview(context, instanceId, claimId);
+    },
+    listClaimTimeline: (instanceId, claimId, limit) => {
+      assertActive(); return readClaimTimeline(context, instanceId, claimId, limit);
+    },
     listAuditEvents: (instanceId) => {
       assertActive();
       readInstance(context, instanceId);
@@ -141,6 +197,8 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
 export type {
   AuditEvent,
   ClaimRecord,
+  ClaimDecisionAck,
+  ClaimEvent,
   DemoInstance,
   LostReportRecord,
   PublicInventoryItem,

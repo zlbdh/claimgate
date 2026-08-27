@@ -17,6 +17,7 @@ type AuthenticatedRouteDefinition = Readonly<{
 
 const publicDemoRoles = Object.freeze(["CLAIMANT", "STAFF"] as const);
 const claimantRole = Object.freeze(["CLAIMANT"] as const);
+const staffRole = Object.freeze(["STAFF"] as const);
 
 export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
   "api.demo.switch-role": Object.freeze({
@@ -57,6 +58,26 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     method: "POST", path: "/api/claims", action: "claim_stage",
     allowedRoles: claimantRole, requiresOneTime: false,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_stage,
+  }),
+  "api.claims.evidence": Object.freeze({
+    method: "POST", path: "/api/claims/:claimId/evidence", action: "evidence_submit",
+    allowedRoles: claimantRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.evidence_submit,
+  }),
+  "api.staff.claims.approve": Object.freeze({
+    method: "POST", path: "/api/staff/claims/:claimId/approve", action: "claim_approve",
+    allowedRoles: staffRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_approve,
+  }),
+  "api.staff.claims.reject": Object.freeze({
+    method: "POST", path: "/api/staff/claims/:claimId/reject", action: "claim_reject",
+    allowedRoles: staffRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_reject,
+  }),
+  "api.staff.claims.unlock": Object.freeze({
+    method: "POST", path: "/api/staff/claims/:claimId/unlock", action: "claim_unlock",
+    allowedRoles: staffRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_unlock,
   }),
 } satisfies Record<string, AuthenticatedRouteDefinition>);
 

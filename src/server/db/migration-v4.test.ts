@@ -70,7 +70,7 @@ function createV3Database(options: { nonNullEvidence?: boolean; injectFailure?: 
       demo_instance_id, id, report_id, found_item_id, claimant_actor_id,
       status, attempts, evidence_eligible, pass_generation, version
     ) VALUES ('demo-v3', 'claim-v3', 'report-v3', 'item-v3', 'claimant-demo',
-      'EVIDENCE_REQUIRED', 0, 1, 0, 4);
+      'EVIDENCE_REQUIRED', 0, 0, 0, 4);
     INSERT INTO audit_events (
       demo_instance_id, id, resource_type, report_id, claim_id,
       action, actor_id, result, occurred_at_ms
@@ -106,7 +106,7 @@ function createV3Database(options: { nonNullEvidence?: boolean; injectFailure?: 
     database.exec(`
       CREATE TRIGGER fail_v4_authenticator
       BEFORE UPDATE OF schema_version ON database_metadata
-      WHEN NEW.schema_version = 4
+      WHEN NEW.schema_version = 5
       BEGIN SELECT RAISE(ABORT, 'injected v4 failure'); END;
     `);
   }
@@ -125,7 +125,7 @@ function evidenceTableSql(database: Database.Database): string {
   `).get() as { sql: string }).sql;
 }
 
-describe("数据库 schema v3 到 v4 evidence rebuild", () => {
+describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
   it("现有 v4 重开时为重复 salt 建索引失败关闭且保持 schema4/data", () => {
     const directory = mkdtempSync(join(tmpdir(), "claimgate-v4-duplicate-"));
     directories.push(directory);
@@ -168,7 +168,7 @@ describe("数据库 schema v3 到 v4 evidence rebuild", () => {
     expect(caught).toEqual(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
     const readonly = new Database(databasePath, { readonly: true });
     expect(readonly.prepare("SELECT schema_version AS version FROM database_metadata").get())
-      .toEqual({ version: 4 });
+      .toEqual({ version: 5 });
     expect(readonly.prepare("SELECT COUNT(*) AS count FROM item_evidence_slots").get())
       .toEqual({ count: 2 });
     readonly.close();
@@ -190,7 +190,7 @@ describe("数据库 schema v3 到 v4 evidence rebuild", () => {
       SELECT schema_version AS schemaVersion, database_uuid AS databaseUuid,
         key_check_salt AS keyCheckSalt FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 4, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt).toEqual(legacy.salt);
     expect(database.prepare("SELECT id, catalog_version FROM demo_instances").get())
       .toEqual({ id: "demo-v3", catalog_version: 9 });
