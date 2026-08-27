@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "runId": "f112ec7b-545d-46c5-bfb4-01f1c276f7f1",
+  "runId": "1c9f8313-0731-4830-ba4b-1e082802ac33",
   "ordinal": 2,
-  "startedAt": "2026-08-27T13:25:28.195Z",
-  "endedAt": "2026-08-27T13:25:33.755Z",
-  "durationMs": 5560,
+  "startedAt": "2026-08-27T13:30:19.666Z",
+  "endedAt": "2026-08-27T13:30:25.177Z",
+  "durationMs": 5511,
   "browserVersion": "151.0.7922.34",
   "nodeVersion": "v22.20.0",
   "playwrightVersion": "1.62.1",
-  "buildId": "qsTUO_NQONwcKcOfRHqN6",
-  "baseCommit": "d6eab8aa2f3a1005142b857fd9eab851b0956343",
+  "buildId": "ObqMwp2L2MqRBOqNz9Ymu",
+  "baseCommit": "0f5d2413a34d6666017c25c21f029d065a13564a",
   "flag": "--enable-features=WebMCPTesting",
   "signatures": {
     "registerTool": "registerTool(tool, { signal }) -> Promise<void>",
@@ -19,7 +19,7 @@
   "phases": [
     {
       "phase": "Claimant workspace",
-      "observedAt": "2026-08-27T13:25:29.983Z",
+      "observedAt": "2026-08-27T13:30:21.404Z",
       "tools": [
         "create_lost_report_draft",
         "list_my_reports"
@@ -31,7 +31,7 @@
     },
     {
       "phase": "DRAFT report",
-      "observedAt": "2026-08-27T13:25:30.279Z",
+      "observedAt": "2026-08-27T13:30:21.686Z",
       "tools": [
         "list_my_reports",
         "update_lost_report_draft"
@@ -43,7 +43,7 @@
     },
     {
       "phase": "PUBLISHED report",
-      "observedAt": "2026-08-27T13:25:30.635Z",
+      "observedAt": "2026-08-27T13:30:22.029Z",
       "tools": [
         "find_candidate_matches",
         "list_my_reports"
@@ -55,7 +55,7 @@
     },
     {
       "phase": "PUBLISHED with candidates",
-      "observedAt": "2026-08-27T13:25:30.774Z",
+      "observedAt": "2026-08-27T13:30:22.168Z",
       "tools": [
         "find_candidate_matches",
         "list_my_reports",
@@ -69,7 +69,7 @@
     },
     {
       "phase": "EVIDENCE_REQUIRED checkpoint",
-      "observedAt": "2026-08-27T13:25:30.975Z",
+      "observedAt": "2026-08-27T13:30:22.370Z",
       "tools": [
         "get_claim_status"
       ],
@@ -79,7 +79,7 @@
     },
     {
       "phase": "UNDER_REVIEW Claimant",
-      "observedAt": "2026-08-27T13:25:31.315Z",
+      "observedAt": "2026-08-27T13:30:22.732Z",
       "tools": [
         "get_claim_status"
       ],
@@ -89,7 +89,7 @@
     },
     {
       "phase": "Staff queue",
-      "observedAt": "2026-08-27T13:25:31.720Z",
+      "observedAt": "2026-08-27T13:30:23.122Z",
       "tools": [
         "list_pending_claims"
       ],
@@ -99,7 +99,7 @@
     },
     {
       "phase": "Staff UNDER_REVIEW claim",
-      "observedAt": "2026-08-27T13:25:31.983Z",
+      "observedAt": "2026-08-27T13:30:23.402Z",
       "tools": [
         "get_claim_review_summary",
         "get_claim_status"
@@ -111,7 +111,7 @@
     },
     {
       "phase": "Staff APPROVED claim",
-      "observedAt": "2026-08-27T13:25:32.246Z",
+      "observedAt": "2026-08-27T13:30:23.666Z",
       "tools": [
         "get_claim_review_summary",
         "get_claim_status"
@@ -123,7 +123,7 @@
     },
     {
       "phase": "Claimant APPROVED claim",
-      "observedAt": "2026-08-27T13:25:32.632Z",
+      "observedAt": "2026-08-27T13:30:24.071Z",
       "tools": [
         "get_claim_status",
         "get_pickup_instructions"
@@ -135,7 +135,7 @@
     },
     {
       "phase": "Staff PICKUP_READY claim",
-      "observedAt": "2026-08-27T13:25:33.117Z",
+      "observedAt": "2026-08-27T13:30:24.555Z",
       "tools": [
         "get_claim_review_summary",
         "get_claim_status"
@@ -147,7 +147,7 @@
     },
     {
       "phase": "Staff COLLECTED claim",
-      "observedAt": "2026-08-27T13:25:33.382Z",
+      "observedAt": "2026-08-27T13:30:24.819Z",
       "tools": [
         "get_claim_status"
       ],
@@ -157,7 +157,7 @@
     },
     {
       "phase": "Home teardown",
-      "observedAt": "2026-08-27T13:25:33.586Z",
+      "observedAt": "2026-08-27T13:30:25.022Z",
       "tools": [],
       "schemas": []
     }

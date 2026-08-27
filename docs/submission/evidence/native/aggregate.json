@@ -1,42 +1,42 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-27T13:25:40.073Z",
-  "baseCommit": "d6eab8aa2f3a1005142b857fd9eab851b0956343",
-  "buildId": "qsTUO_NQONwcKcOfRHqN6",
-  "sourceState": "dirty",
+  "generatedAt": "2026-08-27T13:30:31.389Z",
+  "baseCommit": "0f5d2413a34d6666017c25c21f029d065a13564a",
+  "buildId": "ObqMwp2L2MqRBOqNz9Ymu",
+  "sourceState": "clean",
   "serial": true,
   "runCount": 3,
   "allPassed": true,
   "runs": [
     {
       "ordinal": 1,
-      "runId": "96533d31-50e7-4f08-9fc7-5a9d448d91ce",
-      "startedAt": "2026-08-27T13:25:17.816Z",
-      "endedAt": "2026-08-27T13:25:27.464Z",
-      "durationMs": 9648,
+      "runId": "b1762128-c16c-4fbb-934c-37051022f2c5",
+      "startedAt": "2026-08-27T13:30:09.791Z",
+      "endedAt": "2026-08-27T13:30:18.977Z",
+      "durationMs": 9186,
       "browserVersion": "151.0.7922.34",
       "artifact": "evidence/native/run-1.json",
-      "sha256": "1ba2392d573c87ce38d8950434fcee6848f607d047ff5b4243d063f9db62f4c2"
+      "sha256": "9a63a5cc6d747dd73f206fc847b5932d795d94376c1379e79f77298523a57b27"
     },
     {
       "ordinal": 2,
-      "runId": "f112ec7b-545d-46c5-bfb4-01f1c276f7f1",
-      "startedAt": "2026-08-27T13:25:28.195Z",
-      "endedAt": "2026-08-27T13:25:33.755Z",
-      "durationMs": 5560,
+      "runId": "1c9f8313-0731-4830-ba4b-1e082802ac33",
+      "startedAt": "2026-08-27T13:30:19.666Z",
+      "endedAt": "2026-08-27T13:30:25.177Z",
+      "durationMs": 5511,
       "browserVersion": "151.0.7922.34",
       "artifact": "evidence/native/run-2.json",
-      "sha256": "d261bb5935a1fbd7c7f08b5b00dc6cba3888b554e1d8de60cce1f5e25c6ad8a1"
+      "sha256": "6297d6a490cba4870ac7093b78ac551058208ae5b3eff5b6f289864b62d148cc"
     },
     {
       "ordinal": 3,
-      "runId": "a27eecc0-832d-4e1b-b085-1d88ff78900a",
-      "startedAt": "2026-08-27T13:25:34.451Z",
-      "endedAt": "2026-08-27T13:25:40.031Z",
-      "durationMs": 5580,
+      "runId": "2204c312-04ca-406c-a615-7cf1b8c87636",
+      "startedAt": "2026-08-27T13:30:25.877Z",
+      "endedAt": "2026-08-27T13:30:31.348Z",
+      "durationMs": 5471,
       "browserVersion": "151.0.7922.34",
       "artifact": "evidence/native/run-3.json",
-      "sha256": "936912f8ebd9b001251814defb4f6e4dd8b35c303b7030aeefb7df531f57ea1a"
+      "sha256": "3c62c3522802e1a6f103d68520dc37e045a74d4d599f2004f2cf299a62589c5b"
     }
   ]
 }
