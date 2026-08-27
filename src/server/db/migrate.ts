@@ -1,5 +1,4 @@
-import { Buffer } from "node:buffer";
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { closeSync, existsSync, openSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
@@ -7,19 +6,23 @@ import type { Keyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
 import { openDatabaseConnection } from "./connection";
 import { addV5ClaimAndIdempotencySchema } from "./migration-v5-schema";
+import { addV6PickupSchema } from "./migration-v6-schema";
+import {
+  makeAuthenticator,
+  verifyMetadata,
+  type MetadataRow,
+} from "./database-metadata-authenticator";
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const LEGACY_SCHEMA_VERSION = 1;
 const PRESERVED_SCHEMA_VERSIONS = Object.freeze([2, 3] as const);
 const V4_SCHEMA_VERSION = 4;
+const V5_SCHEMA_VERSION = 5;
 const SCHEMA_SQL = readFileSync(join(process.cwd(), "src/server/db/schema.sql"), "utf8");
-
-type MetadataRow = {
-  schemaVersion: number;
-  databaseUuid: string;
-  keyCheckSalt: Buffer;
-  keyCheckAuthenticator: Buffer;
-};
+const V5_SCHEMA_SQL = readFileSync(
+  join(process.cwd(), "src/server/db/fixtures/schema-v5.sql"),
+  "utf8",
+);
 
 function metadataExists(database: Database.Database): boolean {
   return database.prepare(`
@@ -34,50 +37,6 @@ function readMetadata(database: Database.Database): MetadataRow | undefined {
       key_check_salt AS keyCheckSalt, key_check_authenticator AS keyCheckAuthenticator
     FROM database_metadata WHERE singleton_id = 1
   `).get() as MetadataRow | undefined;
-}
-
-function authenticatorInput(version: number, databaseUuid: string, salt: Buffer): Buffer {
-  const uuid = Buffer.from(databaseUuid, "utf8");
-  const versionBytes = Buffer.alloc(4);
-  const uuidLength = Buffer.alloc(4);
-  const saltLength = Buffer.alloc(4);
-  versionBytes.writeUInt32BE(version);
-  uuidLength.writeUInt32BE(uuid.length);
-  saltLength.writeUInt32BE(salt.length);
-  return Buffer.concat([versionBytes, uuidLength, uuid, saltLength, salt]);
-}
-
-function makeAuthenticator(keyring: Keyring, version: number, databaseUuid: string, salt: Buffer): Buffer {
-  return createHmac("sha256", keyring.getKey("database-key-check"))
-    .update(authenticatorInput(version, databaseUuid, salt))
-    .digest();
-}
-
-function verifyMetadata(
-  metadata: MetadataRow | undefined,
-  keyring: Keyring,
-  expectedVersion: number,
-): asserts metadata is MetadataRow {
-  if (
-    !metadata ||
-    metadata.schemaVersion !== expectedVersion ||
-    typeof metadata.databaseUuid !== "string" ||
-    !Buffer.isBuffer(metadata.keyCheckSalt) ||
-    metadata.keyCheckSalt.length !== 32 ||
-    !Buffer.isBuffer(metadata.keyCheckAuthenticator) ||
-    metadata.keyCheckAuthenticator.length !== 32
-  ) {
-    throw new DomainError("CONFIGURATION_ERROR");
-  }
-  const expected = makeAuthenticator(
-    keyring,
-    metadata.schemaVersion,
-    metadata.databaseUuid,
-    metadata.keyCheckSalt,
-  );
-  if (!timingSafeEqual(expected, metadata.keyCheckAuthenticator)) {
-    throw new DomainError("CONFIGURATION_ERROR");
-  }
 }
 
 function assertForeignKeysClean(database: Database.Database): void {
@@ -151,7 +110,7 @@ function migratePreservingToV5(
     ALTER TABLE item_evidence_slots RENAME TO item_evidence_slots_legacy;
     DROP INDEX item_evidence_slots_item_idx;
   `);
-  addV5ClaimAndIdempotencySchema(database, SCHEMA_SQL);
+  addV5ClaimAndIdempotencySchema(database, V5_SCHEMA_SQL);
   database.exec(`
     INSERT INTO item_evidence_slots (
       demo_instance_id, found_item_id, slot, salt, digest
@@ -164,7 +123,7 @@ function migratePreservingToV5(
   assertForeignKeysClean(database);
   const authenticator = makeAuthenticator(
     keyring,
-    SCHEMA_VERSION,
+    V5_SCHEMA_VERSION,
     metadata.databaseUuid,
     metadata.keyCheckSalt,
   );
@@ -172,7 +131,7 @@ function migratePreservingToV5(
     UPDATE database_metadata
     SET schema_version = ?, key_check_authenticator = ?
     WHERE singleton_id = 1 AND schema_version = ?
-  `).run(SCHEMA_VERSION, authenticator, metadata.schemaVersion);
+  `).run(V5_SCHEMA_VERSION, authenticator, metadata.schemaVersion);
 }
 
 function migrateV4ToV5(
@@ -181,7 +140,28 @@ function migrateV4ToV5(
   metadata: MetadataRow,
 ): void {
   verifyMetadata(metadata, keyring, V4_SCHEMA_VERSION);
-  addV5ClaimAndIdempotencySchema(database, SCHEMA_SQL);
+  addV5ClaimAndIdempotencySchema(database, V5_SCHEMA_SQL);
+  assertForeignKeysClean(database);
+  const authenticator = makeAuthenticator(
+    keyring,
+    V5_SCHEMA_VERSION,
+    metadata.databaseUuid,
+    metadata.keyCheckSalt,
+  );
+  database.prepare(`
+    UPDATE database_metadata
+    SET schema_version = ?, key_check_authenticator = ?
+    WHERE singleton_id = 1 AND schema_version = ?
+  `).run(V5_SCHEMA_VERSION, authenticator, V4_SCHEMA_VERSION);
+}
+
+function migrateV5ToV6(
+  database: Database.Database,
+  keyring: Keyring,
+  metadata: MetadataRow,
+): void {
+  verifyMetadata(metadata, keyring, V5_SCHEMA_VERSION);
+  addV6PickupSchema(database, SCHEMA_SQL);
   assertForeignKeysClean(database);
   const authenticator = makeAuthenticator(
     keyring,
@@ -193,7 +173,7 @@ function migrateV4ToV5(
     UPDATE database_metadata
     SET schema_version = ?, key_check_authenticator = ?
     WHERE singleton_id = 1 AND schema_version = ?
-  `).run(SCHEMA_VERSION, authenticator, V4_SCHEMA_VERSION);
+  `).run(SCHEMA_VERSION, authenticator, V5_SCHEMA_VERSION);
 }
 
 function migrateDatabase(
@@ -210,10 +190,18 @@ function migrateDatabase(
       }
       if (PRESERVED_SCHEMA_VERSIONS.includes(existing.schemaVersion as 2 | 3)) {
         migratePreservingToV5(database, keyring, existing);
+        const upgraded = readMetadata(database)!;
+        migrateV5ToV6(database, keyring, upgraded);
         return;
       }
       if (existing.schemaVersion === V4_SCHEMA_VERSION) {
         migrateV4ToV5(database, keyring, existing);
+        const upgraded = readMetadata(database)!;
+        migrateV5ToV6(database, keyring, upgraded);
+        return;
+      }
+      if (existing.schemaVersion === V5_SCHEMA_VERSION) {
+        migrateV5ToV6(database, keyring, existing);
         return;
       }
       verifyMetadata(existing, keyring, SCHEMA_VERSION);

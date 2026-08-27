@@ -279,7 +279,8 @@ test("manual failure lock, one unlock, second lock, and password clearing bounda
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await page.getByRole("button", { name: "Submit private evidence" }).click();
-    if (attempt === 3) await expect(page.getByRole("heading", { name: "Evidence attempts locked" })).toBeVisible();
+    if (attempt < 3) await expect(page.locator(".checkpoint-ledger")).toContainText(`Failed attempts${attempt}`);
+    else await expect(page.getByRole("heading", { name: "Evidence attempts locked" })).toBeVisible();
   }
   await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
   await page.getByRole("button", { name: "Switch to Staff role" }).click();
@@ -295,5 +296,4 @@ test("manual failure lock, one unlock, second lock, and password clearing bounda
   expect(pageErrors).toEqual([]);
   expect(browserLogs.filter((entry) => /hydration|uncaught|console error/i.test(entry))).toEqual([]);
 });
-
 export {};

@@ -5,9 +5,11 @@ import { connection } from "next/server";
 import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { ClaimStepper } from "@/components/claim-stepper";
 import { EvidenceForm } from "@/components/evidence-form";
+import { PickupPassPanel } from "@/components/pickup-pass-panel";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createClaimService } from "@/features/claims/claim-service";
-import { readClaimantPageSession } from "@/server/http/claimant-page-session";
+import { createPickupPassService } from "@/features/claims/pickup-pass-service";
+import { mintReportCsrf, readClaimantPageSession } from "@/server/http/claimant-page-session";
 import { getHttpRuntime } from "@/server/http/runtime";
 import { mintClaimReviewCsrf } from "@/server/http/staff-page-session";
 
@@ -38,6 +40,25 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
         session,
         routeKey: "api.claims.evidence",
         path: `/api/claims/${claimId}/evidence`,
+      })
+    : undefined;
+  const pickup = ["APPROVED", "PICKUP_READY", "COLLECTED"].includes(claim.status)
+    ? createPickupPassService(runtime).getInstructions({
+        demoInstanceId: session.demoInstanceId,
+        actorId: session.userId,
+        sessionExpiresAt: session.expiresAt,
+      }, claimId)
+    : undefined;
+  const issueCsrf = claim.status === "APPROVED"
+    ? mintReportCsrf({
+        runtime, session, routeKey: "api.claims.pickup.issue",
+        path: `/api/claims/${claimId}/pickup-pass/issue`, oneTime: true,
+      })
+    : undefined;
+  const reissueCsrf = claim.status === "PICKUP_READY"
+    ? mintReportCsrf({
+        runtime, session, routeKey: "api.claims.pickup.reissue",
+        path: `/api/claims/${claimId}/pickup-pass/reissue`, oneTime: true,
       })
     : undefined;
   const heading = claim.status === "EVIDENCE_REQUIRED" ? "Evidence checkpoint"
@@ -85,7 +106,22 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
           {claim.status === "UNDER_REVIEW" && (
             <p className="workspace-state" role="status">Evidence is eligible and waiting for Staff review.</p>
           )}
-          {["REJECTED", "APPROVED", "PICKUP_READY", "COLLECTED"].includes(claim.status) && (
+          {pickup && <>
+            <p className="workspace-state">{pickup.deskName} · {pickup.hours}</p>
+            <PickupPassPanel
+              claimId={claimId}
+              status={claim.status}
+              claimVersion={pickup.claimVersion}
+              generation={pickup.generation}
+              expiresAtMs={pickup.expiresAtMs}
+              issueCsrfToken={issueCsrf}
+              reissueCsrfToken={reissueCsrf}
+            />
+          </>}
+          {claim.status === "COLLECTED" && (
+            <p className="workspace-state" role="status">Pickup is complete and the credential is consumed.</p>
+          )}
+          {claim.status === "REJECTED" && (
             <p className="workspace-state" role="status">This claim is read-only at its current stage.</p>
           )}
         </section>

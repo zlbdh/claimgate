@@ -145,7 +145,6 @@ CREATE TABLE IF NOT EXISTS claims (
   pickup_pass_salt BLOB,
   pickup_pass_digest BLOB,
   pickup_pass_expires_at_ms,
-  pickup_pass_consumed_at_ms,
   pass_generation INTEGER NOT NULL DEFAULT 0 CHECK (pass_generation >= 0),
   version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
   PRIMARY KEY (demo_instance_id, id),
@@ -159,30 +158,17 @@ CREATE TABLE IF NOT EXISTS claims (
     AND pass_generation <= 9007199254740991
   ),
   CHECK (
-    (status NOT IN ('PICKUP_READY', 'COLLECTED') AND
+    (
       pickup_pass_salt IS NULL AND pickup_pass_digest IS NULL
-      AND pickup_pass_expires_at_ms IS NULL
-      AND pickup_pass_consumed_at_ms IS NULL AND pass_generation = 0
+      AND pickup_pass_expires_at_ms IS NULL AND pass_generation = 0
     )
     OR
-    (status = 'PICKUP_READY' AND
+    (
       typeof(pickup_pass_salt) = 'blob' AND length(pickup_pass_salt) = 32
       AND typeof(pickup_pass_digest) = 'blob' AND length(pickup_pass_digest) = 32
       AND typeof(pickup_pass_expires_at_ms) = 'integer'
       AND pickup_pass_expires_at_ms > 0
       AND pickup_pass_expires_at_ms <= 9007199254740991
-      AND pickup_pass_consumed_at_ms IS NULL
-      AND pass_generation > 0
-    )
-    OR
-    (status = 'COLLECTED'
-      AND typeof(pickup_pass_salt) = 'blob' AND length(pickup_pass_salt) = 32
-      AND typeof(pickup_pass_digest) = 'blob' AND length(pickup_pass_digest) = 32
-      AND typeof(pickup_pass_expires_at_ms) = 'integer'
-      AND pickup_pass_expires_at_ms > 0
-      AND pickup_pass_expires_at_ms <= 9007199254740991
-      AND typeof(pickup_pass_consumed_at_ms) = 'integer'
-      AND pickup_pass_consumed_at_ms BETWEEN 0 AND 9007199254740991
       AND pass_generation > 0
     )
   )
@@ -196,10 +182,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS claims_single_winner_item_idx
   ON claims(demo_instance_id, found_item_id)
   WHERE status IN ('APPROVED', 'PICKUP_READY', 'COLLECTED');
 
-DROP TRIGGER IF EXISTS claims_v5_invariants_insert;
-DROP TRIGGER IF EXISTS claims_v6_invariants_insert;
-
-CREATE TRIGGER claims_v6_invariants_insert
+CREATE TRIGGER IF NOT EXISTS claims_v5_invariants_insert
 BEFORE INSERT ON claims
 WHEN COALESCE((
   typeof(NEW.attempts) = 'integer' AND NEW.attempts BETWEEN 0 AND 3
@@ -228,38 +211,17 @@ WHEN COALESCE((
       AND ((NEW.evidence_eligible = 0 AND NEW.attempts BETWEEN 0 AND 3)
         OR (NEW.evidence_eligible = 1 AND NEW.attempts BETWEEN 0 AND 2)))
   )
-  AND (
-    (NEW.status NOT IN ('PICKUP_READY', 'COLLECTED')
-      AND NEW.pickup_pass_salt IS NULL AND NEW.pickup_pass_digest IS NULL
-      AND NEW.pickup_pass_expires_at_ms IS NULL
-      AND NEW.pickup_pass_consumed_at_ms IS NULL AND NEW.pass_generation = 0)
-    OR (NEW.status = 'PICKUP_READY'
-      AND typeof(NEW.pickup_pass_salt) = 'blob' AND length(NEW.pickup_pass_salt) = 32
-      AND typeof(NEW.pickup_pass_digest) = 'blob' AND length(NEW.pickup_pass_digest) = 32
-      AND typeof(NEW.pickup_pass_expires_at_ms) = 'integer'
-      AND NEW.pickup_pass_expires_at_ms BETWEEN 1 AND 9007199254740991
-      AND NEW.pickup_pass_consumed_at_ms IS NULL AND NEW.pass_generation >= 1)
-    OR (NEW.status = 'COLLECTED'
-      AND typeof(NEW.pickup_pass_salt) = 'blob' AND length(NEW.pickup_pass_salt) = 32
-      AND typeof(NEW.pickup_pass_digest) = 'blob' AND length(NEW.pickup_pass_digest) = 32
-      AND typeof(NEW.pickup_pass_expires_at_ms) = 'integer'
-      AND NEW.pickup_pass_expires_at_ms BETWEEN 1 AND 9007199254740991
-      AND typeof(NEW.pickup_pass_consumed_at_ms) = 'integer'
-      AND NEW.pickup_pass_consumed_at_ms BETWEEN 0 AND 9007199254740991
-      AND NEW.pass_generation >= 1)
-  )
 ), 0) = 0
 BEGIN
-  SELECT RAISE(ABORT, 'invalid claim v6 state');
+  SELECT RAISE(ABORT, 'invalid claim v5 state');
 END;
 
 DROP TRIGGER IF EXISTS claims_v5_invariants_update;
 DROP TRIGGER IF EXISTS claims_v5_transition_update;
 DROP TRIGGER IF EXISTS claims_v5_unlock_update;
 DROP TRIGGER IF EXISTS claims_v5_operation_update;
-DROP TRIGGER IF EXISTS claims_v6_operation_update;
 
-CREATE TRIGGER claims_v6_operation_update
+CREATE TRIGGER claims_v5_operation_update
 BEFORE UPDATE ON claims
 WHEN COALESCE((
   NEW.demo_instance_id = OLD.demo_instance_id AND NEW.id = OLD.id
@@ -312,54 +274,18 @@ WHEN COALESCE((
       AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
       AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
       AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
-    OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'PICKUP_READY'
-      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
-      AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
-      AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
     OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'COLLECTED'
       AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
       AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
       AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
-  )
-  AND (
-    (OLD.status NOT IN ('PICKUP_READY', 'COLLECTED')
-      AND NEW.status NOT IN ('PICKUP_READY', 'COLLECTED')
-      AND OLD.pickup_pass_salt IS NULL AND NEW.pickup_pass_salt IS NULL
-      AND OLD.pickup_pass_digest IS NULL AND NEW.pickup_pass_digest IS NULL
-      AND OLD.pickup_pass_expires_at_ms IS NULL AND NEW.pickup_pass_expires_at_ms IS NULL
-      AND OLD.pickup_pass_consumed_at_ms IS NULL AND NEW.pickup_pass_consumed_at_ms IS NULL
-      AND OLD.pass_generation = 0 AND NEW.pass_generation = 0)
-    OR (OLD.status = 'APPROVED' AND NEW.status = 'PICKUP_READY'
-      AND OLD.pickup_pass_salt IS NULL AND OLD.pickup_pass_digest IS NULL
-      AND OLD.pickup_pass_expires_at_ms IS NULL AND OLD.pickup_pass_consumed_at_ms IS NULL
-      AND OLD.pass_generation = 0
-      AND typeof(NEW.pickup_pass_salt) = 'blob' AND length(NEW.pickup_pass_salt) = 32
-      AND typeof(NEW.pickup_pass_digest) = 'blob' AND length(NEW.pickup_pass_digest) = 32
-      AND typeof(NEW.pickup_pass_expires_at_ms) = 'integer'
-      AND NEW.pickup_pass_expires_at_ms BETWEEN 1 AND 9007199254740991
-      AND NEW.pickup_pass_consumed_at_ms IS NULL AND NEW.pass_generation = 1)
-    OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'PICKUP_READY'
-      AND OLD.pickup_pass_consumed_at_ms IS NULL AND NEW.pickup_pass_consumed_at_ms IS NULL
-      AND NEW.pass_generation = OLD.pass_generation + 1
-      AND typeof(NEW.pickup_pass_salt) = 'blob' AND length(NEW.pickup_pass_salt) = 32
-      AND typeof(NEW.pickup_pass_digest) = 'blob' AND length(NEW.pickup_pass_digest) = 32
-      AND typeof(NEW.pickup_pass_expires_at_ms) = 'integer'
-      AND NEW.pickup_pass_expires_at_ms BETWEEN 1 AND 9007199254740991
-      AND NEW.pickup_pass_salt IS NOT OLD.pickup_pass_salt
-      AND NEW.pickup_pass_digest IS NOT OLD.pickup_pass_digest
-      AND NEW.pickup_pass_expires_at_ms IS NOT OLD.pickup_pass_expires_at_ms)
-    OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'COLLECTED'
-      AND NEW.pickup_pass_salt IS OLD.pickup_pass_salt
-      AND NEW.pickup_pass_digest IS OLD.pickup_pass_digest
-      AND NEW.pickup_pass_expires_at_ms IS OLD.pickup_pass_expires_at_ms
-      AND NEW.pass_generation = OLD.pass_generation
-      AND OLD.pickup_pass_consumed_at_ms IS NULL
-      AND typeof(NEW.pickup_pass_consumed_at_ms) = 'integer'
-      AND NEW.pickup_pass_consumed_at_ms BETWEEN 0 AND 9007199254740991)
+    OR (OLD.status IN ('APPROVED', 'PICKUP_READY') AND NEW.status = OLD.status
+      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
+      AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
   )
 ), 0) = 0
 BEGIN
-  SELECT RAISE(ABORT, 'invalid claim v6 operation');
+  SELECT RAISE(ABORT, 'invalid claim v5 operation');
 END;
 
 CREATE TABLE IF NOT EXISTS claim_events (
@@ -368,13 +294,11 @@ CREATE TABLE IF NOT EXISTS claim_events (
   claim_id TEXT NOT NULL,
   event_type TEXT NOT NULL CHECK (event_type IN (
     'EVIDENCE_INSUFFICIENT', 'EVIDENCE_ELIGIBLE', 'EVIDENCE_LOCKED',
-    'UNLOCKED', 'APPROVED', 'STAFF_REJECTED', 'COMPETING_REJECTED',
-    'PASS_ISSUED', 'PASS_REISSUED', 'HANDOFF_COMPLETED'
+    'UNLOCKED', 'APPROVED', 'STAFF_REJECTED', 'COMPETING_REJECTED'
   )),
   actor_id TEXT NOT NULL CHECK (actor_id IN ('claimant-demo', 'staff-demo')),
   result TEXT NOT NULL CHECK (result IN (
-    'INSUFFICIENT', 'ELIGIBLE', 'LOCKED', 'UNLOCKED', 'APPROVED', 'REJECTED',
-    'ISSUED', 'REISSUED', 'COLLECTED'
+    'INSUFFICIENT', 'ELIGIBLE', 'LOCKED', 'UNLOCKED', 'APPROVED', 'REJECTED'
   )),
   occurred_at_ms INTEGER NOT NULL CHECK (
     typeof(occurred_at_ms) = 'integer'
@@ -389,9 +313,6 @@ CREATE TABLE IF NOT EXISTS claim_events (
     OR (event_type = 'EVIDENCE_LOCKED' AND actor_id = 'claimant-demo' AND result = 'LOCKED')
     OR (event_type = 'UNLOCKED' AND actor_id = 'staff-demo' AND result = 'UNLOCKED')
     OR (event_type = 'APPROVED' AND actor_id = 'staff-demo' AND result = 'APPROVED')
-    OR (event_type = 'PASS_ISSUED' AND actor_id = 'claimant-demo' AND result = 'ISSUED')
-    OR (event_type = 'PASS_REISSUED' AND actor_id = 'claimant-demo' AND result = 'REISSUED')
-    OR (event_type = 'HANDOFF_COMPLETED' AND actor_id = 'staff-demo' AND result = 'COLLECTED')
     OR (event_type IN ('STAFF_REJECTED', 'COMPETING_REJECTED')
       AND actor_id = 'staff-demo' AND result = 'REJECTED')
   )
@@ -483,8 +404,7 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
   actor_id TEXT NOT NULL CHECK (actor_id IN ('claimant-demo', 'staff-demo')),
   action TEXT NOT NULL CHECK (action IN (
     'draft_create', 'draft_update', 'claim_stage',
-    'evidence_submit', 'claim_approve', 'claim_reject', 'claim_unlock',
-    'pickup_issue', 'pickup_reissue', 'handoff'
+    'evidence_submit', 'claim_approve', 'claim_reject', 'claim_unlock'
   )),
   key_digest BLOB NOT NULL CHECK (typeof(key_digest) = 'blob' AND length(key_digest) = 32),
   request_fingerprint_digest BLOB NOT NULL CHECK (

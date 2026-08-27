@@ -52,10 +52,14 @@ function forceValidClaimState(
     version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
   if (status === "APPROVED") return;
-  database.prepare(`UPDATE claims SET status = 'PICKUP_READY', version = version + 1
+  database.prepare(`UPDATE claims SET status = 'PICKUP_READY',
+    pickup_pass_salt = zeroblob(32), pickup_pass_digest = randomblob(32),
+    pickup_pass_expires_at_ms = 1800000000000, pass_generation = 1,
+    version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
   if (status === "PICKUP_READY") return;
-  database.prepare(`UPDATE claims SET status = 'COLLECTED', version = version + 1
+  database.prepare(`UPDATE claims SET status = 'COLLECTED',
+    pickup_pass_consumed_at_ms = 1800000000000, version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
 }
 

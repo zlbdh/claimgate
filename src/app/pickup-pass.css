@@ -1,0 +1,39 @@
+.pickup-pass-panel {
+  margin-top: 28px;
+  padding: 26px;
+  border: 1px solid var(--ink);
+  border-left: 6px solid var(--amber);
+  background: linear-gradient(135deg, var(--paper-bright), var(--amber-soft));
+}
+
+.pickup-pass-panel h2,
+.staff-handoff h2 { margin: 7px 0 10px; font: 600 27px/1.1 Georgia, serif; }
+.pickup-pass-panel > p:not(.workspace-kicker),
+.staff-handoff p { max-width: 58ch; color: var(--ink-soft); line-height: 1.45; }
+.pickup-pass-panel button,
+.staff-handoff button {
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper-bright);
+  font-weight: 700;
+}
+.pickup-pass-panel button:disabled { cursor: wait; opacity: 0.6; }
+.pickup-pass-meta { display: flex; gap: 30px; margin: 22px 0; }
+.pickup-pass-meta dt { color: var(--ink-soft); font: 700 11px/1.3 ui-monospace, monospace; text-transform: uppercase; }
+.pickup-pass-meta dd { margin: 5px 0 0; font: 600 16px/1.2 Georgia, serif; }
+.pickup-credential { display: grid; justify-items: center; gap: 18px; padding-top: 18px; }
+.pickup-credential canvas { max-width: 224px; border: 8px solid var(--paper-bright); }
+.pickup-credential code { padding: 9px 12px; border: 1px solid var(--rule-strong); background: var(--paper-bright); }
+.pickup-credential .manual-actions { justify-content: center; border-top: 0; }
+.staff-handoff { display: grid; gap: 12px; margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.staff-handoff label { display: grid; gap: 7px; max-width: 560px; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
+.staff-handoff input { min-height: 44px; padding: 10px 12px; border: 1px solid var(--rule-strong); font: 16px/1.35 monospace; }
+.staff-handoff button { width: fit-content; }
+
+@media (max-width: 600px) {
+  .pickup-pass-meta { display: grid; gap: 12px; }
+  .pickup-pass-panel, .staff-handoff { padding-inline: 18px; }
+  .staff-handoff button { width: 100%; }
+}

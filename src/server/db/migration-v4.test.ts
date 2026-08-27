@@ -168,7 +168,7 @@ describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
     expect(caught).toEqual(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
     const readonly = new Database(databasePath, { readonly: true });
     expect(readonly.prepare("SELECT schema_version AS version FROM database_metadata").get())
-      .toEqual({ version: 5 });
+      .toEqual({ version: 6 });
     expect(readonly.prepare("SELECT COUNT(*) AS count FROM item_evidence_slots").get())
       .toEqual({ count: 2 });
     readonly.close();
@@ -190,7 +190,7 @@ describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
       SELECT schema_version AS schemaVersion, database_uuid AS databaseUuid,
         key_check_salt AS keyCheckSalt FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 6, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt).toEqual(legacy.salt);
     expect(database.prepare("SELECT id, catalog_version FROM demo_instances").get())
       .toEqual({ id: "demo-v3", catalog_version: 9 });

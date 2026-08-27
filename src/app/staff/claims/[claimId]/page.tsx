@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { ClaimStepper } from "@/components/claim-stepper";
 import { StaffDecisionForm } from "@/components/staff-decision-form";
+import { StaffHandoffForm } from "@/components/staff-handoff-form";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createAuditService } from "@/features/audit/audit-service";
 import { formatUtcTime } from "@/features/audit/staff-time";
@@ -35,6 +36,12 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
   const rejectToken = review.claim.status === "UNDER_REVIEW" ? token("api.staff.claims.reject", "reject") : undefined;
   const unlockToken = review.claim.status === "LOCKED" && review.claim.unlockCount === 0
     ? token("api.staff.claims.unlock", "unlock") : undefined;
+  const handoffToken = review.claim.status === "PICKUP_READY"
+    ? mintClaimReviewCsrf({
+        runtime, session, routeKey: "api.staff.claims.handoff",
+        path: `/api/staff/claims/${claimId}/handoff`,
+      })
+    : undefined;
   return (
     <main className="report-workspace staff-workspace">
       <Link className="workspace-back" href="/staff">← Staff review queue</Link>
@@ -66,6 +73,22 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
             rejectCsrfToken={rejectToken}
             unlockCsrfToken={unlockToken}
           />
+          {review.claim.status === "APPROVED" && (
+            <p className="workspace-state">Waiting for the Claimant to generate a pickup pass.</p>
+          )}
+          {review.claim.status === "PICKUP_READY" && handoffToken && (
+            <StaffHandoffForm
+              claimId={claimId}
+              claimVersion={review.claim.version}
+              itemVersion={review.item.itemVersion}
+              reportVersion={review.report.version}
+              generation={review.claim.generation}
+              csrfToken={handoffToken}
+            />
+          )}
+          {review.claim.status === "COLLECTED" && (
+            <p className="workspace-state">Handoff complete. Item returned and report resolved.</p>
+          )}
         </section>
         <aside className="workspace-rail">
           <section><h2>Lost report</h2><p>{review.report.publicDescription}</p></section>

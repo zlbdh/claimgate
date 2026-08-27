@@ -3,6 +3,12 @@ import type { ItemStatus, ClaimStatus, ReportStatus } from "@/features/claims/cl
 import type { PublicFoundItem } from "@/features/inventory/found-item";
 import type { TimeWindow } from "@/features/matching/score-candidate";
 import type { EvidenceDigester } from "@/features/evidence/evidence-digester";
+import type { HandoffAck } from "./pickup-pass-types";
+export type {
+  CompletePickupHandoffInput, HandoffAck, IssuePickupPassInput,
+  PickupIssuanceAction, PickupIssuanceIdempotencyRequest, PickupIssuanceMutation,
+  PickupIssuanceResult, PickupPassAck, ServerInternalPickupContext,
+} from "./pickup-pass-types";
 
 export type RepositoryContext = {
   database: Database.Database;
@@ -104,9 +110,13 @@ export type ClaimEvent = Readonly<{
     | "UNLOCKED"
     | "APPROVED"
     | "STAFF_REJECTED"
-    | "COMPETING_REJECTED";
+    | "COMPETING_REJECTED"
+    | "PASS_ISSUED"
+    | "PASS_REISSUED"
+    | "HANDOFF_COMPLETED";
   actorId: "claimant-demo" | "staff-demo";
-  result: "INSUFFICIENT" | "ELIGIBLE" | "LOCKED" | "UNLOCKED" | "APPROVED" | "REJECTED";
+  result: "INSUFFICIENT" | "ELIGIBLE" | "LOCKED" | "UNLOCKED" | "APPROVED" | "REJECTED"
+    | "ISSUED" | "REISSUED" | "COLLECTED";
   occurredAtMs: number;
 }>;
 
@@ -185,7 +195,8 @@ export type IdempotencyAction =
   | "evidence_submit"
   | "claim_approve"
   | "claim_reject"
-  | "claim_unlock";
+  | "claim_unlock"
+  | "handoff";
 
 export type IdempotencyRequest = {
   demoInstanceId: string;
@@ -224,7 +235,8 @@ export type IdempotencyResult =
     evidenceEligible: boolean;
     unlockCount: number;
     rejectionReason: "STAFF_REJECTED" | "ITEM_HELD_BY_ANOTHER_CLAIM" | null;
-  };
+  }
+  | HandoffAck;
 
 export type RepositoryOptions = {
   database: Database.Database;

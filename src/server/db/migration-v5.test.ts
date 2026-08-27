@@ -122,7 +122,7 @@ describe("database schema v4 to v5 exact migration", () => {
     expect(database.prepare(`
       SELECT schema_version AS schemaVersion, database_uuid AS databaseUuid,
         key_check_salt AS keyCheckSalt FROM database_metadata WHERE singleton_id = 1
-    `).get()).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid, keyCheckSalt: legacy.salt });
+    `).get()).toMatchObject({ schemaVersion: 6, databaseUuid: legacy.databaseUuid, keyCheckSalt: legacy.salt });
     expect(database.prepare(`
       SELECT status, attempts, evidence_eligible AS eligible, unlock_count AS unlockCount,
         rejection_reason AS rejectionReason, version FROM claims

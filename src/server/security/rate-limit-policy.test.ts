@@ -87,6 +87,16 @@ describe("冻结的完整限流策略矩阵", () => {
         allowedRoles: ["CLAIMANT"], requiresOneTime: true,
         ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.evidence_submit,
       },
+      "api.claims.pickup.issue": {
+        method: "POST", path: "/api/claims/:claimId/pickup-pass/issue", action: "pickup_issue",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.pickup_issue,
+      },
+      "api.claims.pickup.reissue": {
+        method: "POST", path: "/api/claims/:claimId/pickup-pass/reissue", action: "pickup_reissue",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.pickup_reissue,
+      },
       "api.staff.claims.approve": {
         method: "POST", path: "/api/staff/claims/:claimId/approve", action: "claim_approve",
         allowedRoles: ["STAFF"], requiresOneTime: true,
@@ -101,6 +111,11 @@ describe("冻结的完整限流策略矩阵", () => {
         method: "POST", path: "/api/staff/claims/:claimId/unlock", action: "claim_unlock",
         allowedRoles: ["STAFF"], requiresOneTime: true,
         ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_unlock,
+      },
+      "api.staff.claims.handoff": {
+        method: "POST", path: "/api/staff/claims/:claimId/handoff", action: "handoff",
+        allowedRoles: ["STAFF"], requiresOneTime: true,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.handoff,
       },
     });
     expect(Object.isFrozen(AUTHENTICATED_ROUTE_REGISTRY)).toBe(true);

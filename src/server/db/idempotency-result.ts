@@ -135,6 +135,27 @@ function validateResult(
     return dataRecord(fields) as IdempotencyResult;
   }
   if (kind === "claim_state_ack") return validateClaimState(request, fields, errorCode);
+  if (kind === "handoff_ack") {
+    const keys = [
+      "kind", "claimId", "completion", "claimStatus", "claimVersion",
+      "itemStatus", "itemVersion", "reportStatus", "reportVersion", "generation",
+    ];
+    if (
+      request.action !== "handoff"
+      || request.actorId !== "staff-demo"
+      || request.expectedClaimId !== fields.get("claimId")
+      || !exactFields(fields, keys)
+      || !["COLLECTED", "ALREADY_COLLECTED"].includes(String(fields.get("completion")))
+      || fields.get("claimStatus") !== "COLLECTED"
+      || fields.get("itemStatus") !== "RETURNED"
+      || fields.get("reportStatus") !== "RESOLVED"
+      || !positiveVersion(fields.get("claimVersion"))
+      || !positiveVersion(fields.get("itemVersion"))
+      || !positiveVersion(fields.get("reportVersion"))
+      || !positiveVersion(fields.get("generation"))
+    ) throw new DomainError(errorCode);
+    return dataRecord(fields) as IdempotencyResult;
+  }
   throw new DomainError(errorCode);
 }
 
@@ -146,6 +167,13 @@ function canonicalRecord(value: IdempotencyResult): Record<string, unknown> {
   if (value.kind === "claim_ack") return dataRecord([
     ["kind", value.kind], ["claimId", value.claimId],
     ["status", value.status], ["version", value.version],
+  ]);
+  if (value.kind === "handoff_ack") return dataRecord([
+    ["kind", value.kind], ["claimId", value.claimId], ["completion", value.completion],
+    ["claimStatus", value.claimStatus], ["claimVersion", value.claimVersion],
+    ["itemStatus", value.itemStatus], ["itemVersion", value.itemVersion],
+    ["reportStatus", value.reportStatus], ["reportVersion", value.reportVersion],
+    ["generation", value.generation],
   ]);
   return dataRecord([
     ["kind", value.kind],

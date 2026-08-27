@@ -12,6 +12,9 @@ const EVENT_RESULT: Readonly<Record<EventType, ClaimEvent["result"]>> = Object.f
   APPROVED: "APPROVED",
   STAFF_REJECTED: "REJECTED",
   COMPETING_REJECTED: "REJECTED",
+  PASS_ISSUED: "ISSUED",
+  PASS_REISSUED: "REISSUED",
+  HANDOFF_COMPLETED: "COLLECTED",
 });
 
 export function appendClaimEvent(
@@ -23,8 +26,10 @@ export function appendClaimEvent(
 ): void {
   const actor = requireActor(actorId);
   if (
-    (eventType.startsWith("EVIDENCE_") && actor !== "claimant-demo")
-    || (!eventType.startsWith("EVIDENCE_") && actor !== "staff-demo")
+    ((eventType.startsWith("EVIDENCE_") || eventType.startsWith("PASS_"))
+      && actor !== "claimant-demo")
+    || (!(eventType.startsWith("EVIDENCE_") || eventType.startsWith("PASS_"))
+      && actor !== "staff-demo")
   ) throw new DomainError("VALIDATION_FAILED");
   const event = { eventType, actorId: actor, result: EVENT_RESULT[eventType] };
   assertNoInternalInventoryIdentity(context, event, "VALIDATION_FAILED");

@@ -25,6 +25,7 @@ function digest(domain: string, value: string): Buffer {
 const IDEMPOTENCY_ACTIONS = [
   "draft_create", "draft_update", "claim_stage",
   "evidence_submit", "claim_approve", "claim_reject", "claim_unlock",
+  "handoff",
 ] as const;
 
 export function runIdempotent(

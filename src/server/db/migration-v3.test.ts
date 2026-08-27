@@ -117,7 +117,7 @@ describe("数据库 schema v2 到 v5 preserving migration", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 6, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     for (const [table, count] of Object.entries(legacy.before)) {
       expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual(count);

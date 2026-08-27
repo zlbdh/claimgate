@@ -64,6 +64,16 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     allowedRoles: claimantRole, requiresOneTime: true,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.evidence_submit,
   }),
+  "api.claims.pickup.issue": Object.freeze({
+    method: "POST", path: "/api/claims/:claimId/pickup-pass/issue", action: "pickup_issue",
+    allowedRoles: claimantRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.pickup_issue,
+  }),
+  "api.claims.pickup.reissue": Object.freeze({
+    method: "POST", path: "/api/claims/:claimId/pickup-pass/reissue", action: "pickup_reissue",
+    allowedRoles: claimantRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.pickup_reissue,
+  }),
   "api.staff.claims.approve": Object.freeze({
     method: "POST", path: "/api/staff/claims/:claimId/approve", action: "claim_approve",
     allowedRoles: staffRole, requiresOneTime: true,
@@ -78,6 +88,11 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     method: "POST", path: "/api/staff/claims/:claimId/unlock", action: "claim_unlock",
     allowedRoles: staffRole, requiresOneTime: true,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_unlock,
+  }),
+  "api.staff.claims.handoff": Object.freeze({
+    method: "POST", path: "/api/staff/claims/:claimId/handoff", action: "handoff",
+    allowedRoles: staffRole, requiresOneTime: true,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.handoff,
   }),
 } satisfies Record<string, AuthenticatedRouteDefinition>);
 

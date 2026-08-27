@@ -89,7 +89,7 @@ describe("数据库 schema v1 到 v5 升级", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 5, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 6, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     expect(database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get()).toEqual({ count: 0 });
     const auditColumns = database.pragma("table_info(audit_events)") as Array<{ name: string }>;

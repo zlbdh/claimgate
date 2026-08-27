@@ -7,6 +7,7 @@ import { WebMcpProvider } from "@/components/webmcp-provider";
 import "./globals.css";
 import "./demo-session.css";
 import "./report-workspace.css";
+import "./pickup-pass.css";
 import "./webmcp-probe/probe.css";
 
 export const metadata: Metadata = {

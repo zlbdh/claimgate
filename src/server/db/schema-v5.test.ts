@@ -33,7 +33,7 @@ function expectConstraintViolation(operation: () => unknown): void {
 describe("schema v5 claim review invariants", () => {
   it("creates schema v5 with the review columns, redacted events, and closed indexes", () => {
     testDatabase = createTestDatabase();
-    expect(metadataVersion()).toBe(5);
+    expect(metadataVersion()).toBe(6);
     expect(claimColumns()).toEqual(expect.arrayContaining(["unlock_count", "rejection_reason"]));
     expect(testDatabase.database.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'claim_events'",

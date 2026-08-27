@@ -10,7 +10,7 @@ describe("post-build evidence client gate wiring", () => {
     expect(packageJson.scripts["check:evidence-client"])
       .toBe("tsx scripts/check-evidence-client.ts");
     expect(packageJson.scripts.verify).toMatch(
-      /npm run build && npm run check:evidence-client$/,
+      /npm run build && npm run check:evidence-client && npm run check:pickup-client$/,
     );
     expect(existsSync(resolve("scripts/check-evidence-client.ts"))).toBe(true);
   });

@@ -42,6 +42,9 @@ export type StaffClaimReview = Readonly<{
     evidenceEligible: boolean;
     unlockCount: number;
     rejectionReason: "STAFF_REJECTED" | "ITEM_HELD_BY_ANOTHER_CLAIM" | null;
+    generation: number;
+    expiresAtMs: number | null;
+    consumedAtMs: number | null;
   }>;
   item: ItemSummary & Readonly<{ status: ItemStatus; itemVersion: number }>;
   report: Readonly<{
@@ -116,6 +119,7 @@ export function listStaffReviewQueue(
 type ReviewRow = {
   claimId: string; claimStatus: ClaimStatus; claimVersion: number; failedAttempts: number;
   evidenceEligible: number; unlockCount: number; rejectionReason: StaffClaimReview["claim"]["rejectionReason"];
+  generation: number; expiresAtMs: number | null; consumedAtMs: number | null;
   itemStatus: ItemStatus; itemVersion: number; category: string; foundAt: string; area: string;
   color: string; itemTagsJson: string; itemDescription: string; reportId: string;
   reportCategory: string; reportArea: string; reportColor: string;
@@ -133,6 +137,8 @@ export function getStaffClaimReview(
     SELECT c.id AS claimId, c.status AS claimStatus, c.version AS claimVersion,
       c.attempts AS failedAttempts, c.evidence_eligible AS evidenceEligible,
       c.unlock_count AS unlockCount, c.rejection_reason AS rejectionReason,
+      c.pass_generation AS generation, c.pickup_pass_expires_at_ms AS expiresAtMs,
+      c.pickup_pass_consumed_at_ms AS consumedAtMs,
       i.status AS itemStatus, i.version AS itemVersion, i.category, i.found_at AS foundAt,
       i.area, i.color, i.public_tags_json AS itemTagsJson,
       i.public_description AS itemDescription, r.id AS reportId,
@@ -161,6 +167,7 @@ export function getStaffClaimReview(
       claimId: row.claimId, status: row.claimStatus, version: row.claimVersion,
       failedAttempts: row.failedAttempts, evidenceEligible: row.evidenceEligible === 1,
       unlockCount: row.unlockCount, rejectionReason: row.rejectionReason,
+      generation: row.generation, expiresAtMs: row.expiresAtMs, consumedAtMs: row.consumedAtMs,
     }),
     item,
     report: Object.freeze({

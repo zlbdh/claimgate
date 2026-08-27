@@ -91,21 +91,11 @@ describe("digest-only SQLite 约束", () => {
       version = version + 1 WHERE demo_instance_id = ? AND id = ?`)
       .run(instance.demoInstanceId, claim.claimId);
     const update = database.prepare(`
-      UPDATE claims SET pickup_pass_salt = ?, pickup_pass_digest = ?,
+      UPDATE claims SET status = 'PICKUP_READY', pickup_pass_salt = ?, pickup_pass_digest = ?,
         pickup_pass_expires_at_ms = ?, pass_generation = ?, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `);
     const valid = Buffer.alloc(32, 2);
-    expect(() => update.run(valid, valid, BigInt("1800000000000"), 1, instance.demoInstanceId, claim.claimId))
-      .not.toThrow();
-    expect(database.prepare(`
-      SELECT typeof(pass_generation) AS generationType FROM claims
-      WHERE demo_instance_id = ? AND id = ?
-    `).get(instance.demoInstanceId, claim.claimId)).toEqual({ generationType: "integer" });
-    database.prepare(`
-      UPDATE claims SET pickup_pass_salt=NULL, pickup_pass_digest=NULL,
-        pickup_pass_expires_at_ms=NULL, pass_generation=0, version = version + 1
-    `).run();
     for (const values of [
       ["x".repeat(32), "y".repeat(32), 1_800_000_000_000, 1],
       [Buffer.alloc(31), valid, 1_800_000_000_000, 1],
@@ -121,6 +111,12 @@ describe("digest-only SQLite 约束", () => {
     ]) {
       expect(() => update.run(...values, instance.demoInstanceId, claim.claimId)).toThrow();
     }
+    expect(() => update.run(valid, valid, BigInt("1800000000000"), 1, instance.demoInstanceId, claim.claimId))
+      .not.toThrow();
+    expect(database.prepare(`
+      SELECT typeof(pass_generation) AS generationType FROM claims
+      WHERE demo_instance_id = ? AND id = ?
+    `).get(instance.demoInstanceId, claim.claimId)).toEqual({ generationType: "integer" });
   });
 
   it("metadata、idempotency 和 nonce digest 拒绝 TEXT 伪装及非 32-byte BLOB", () => {

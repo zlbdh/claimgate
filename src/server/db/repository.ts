@@ -6,6 +6,7 @@ import type {
   ClaimDecisionAck,
   ClaimEvent,
   ClaimRecord,
+  CompletePickupHandoffInput,
   ConsumeActionNonceInput,
   CreateClaimInput,
   CreateLostReportInput,
@@ -13,6 +14,11 @@ import type {
   EvidenceOutcomeInput,
   IdempotencyRequest,
   IdempotencyResult,
+  HandoffAck,
+  IssuePickupPassInput,
+  PickupIssuanceIdempotencyRequest,
+  PickupIssuanceMutation,
+  PickupIssuanceResult,
   LostReportRecord,
   PublicInventoryItem,
   RepositoryContext,
@@ -20,6 +26,7 @@ import type {
   ServerInternalFoundItem,
   ServerInternalFoundItemMutationResult,
   ServerInternalClaimEvidenceContext,
+  ServerInternalPickupContext,
   StaffClaimDecisionInput,
   TransitionLostReportInput,
   UpdateClaimInput,
@@ -54,6 +61,7 @@ import {
 import { createClaim as insertClaim, getClaim as readClaim, updateClaim as mutateClaim } from "./claim-repository";
 import { listServerInternalFoundItems as readInternalItems, updateFoundItem as mutateItem } from "./inventory-repository";
 import { runIdempotent as executeIdempotent } from "./idempotency-repository";
+import { runPickupIssuanceIdempotent as executePickupIssuanceIdempotent } from "./pickup-issuance-idempotency";
 import {
   archiveLostReport as archiveReport,
   createLostReport as insertReport,
@@ -64,6 +72,11 @@ import {
 } from "./report-repository";
 import { rejectAsyncCallback, rejectPromise } from "./repository-internal";
 import { listServerInternalEvidenceSlots as readEvidenceSlots } from "./evidence-repository";
+import {
+  completePickupHandoff as completeHandoff,
+  getServerInternalPickupContext as readPickupContext,
+  issuePickupPass as issuePass,
+} from "./pickup-pass-repository";
 
 export type ClaimGateRepository = {
   createDemoInstance(): DemoInstance;
@@ -93,12 +106,22 @@ export type ClaimGateRepository = {
   approveClaim(input: ApproveClaimInput): ClaimDecisionAck;
   rejectClaim(input: StaffClaimDecisionInput): ClaimDecisionAck;
   unlockClaim(input: StaffClaimDecisionInput): ClaimDecisionAck;
+  getServerInternalPickupContext(
+    demoInstanceId: string,
+    claimId: string,
+  ): ServerInternalPickupContext;
+  issuePickupPass(input: IssuePickupPassInput): import("./repository-types").PickupPassAck;
+  completePickupHandoff(input: CompletePickupHandoffInput): HandoffAck;
   listClaimEvents(demoInstanceId: string, claimId: string, limit?: number): ClaimEvent[];
   listStaffReviewQueue(demoInstanceId: string, limit: number): StaffQueueEntry[];
   getStaffClaimReview(demoInstanceId: string, claimId: string): StaffClaimReview;
   listClaimTimeline(demoInstanceId: string, claimId: string, limit: number): ClaimTimelineEntry[];
   listAuditEvents(demoInstanceId: string): AuditEvent[];
   runIdempotent(request: IdempotencyRequest, mutation: () => IdempotencyResult): IdempotencyResult;
+  runPickupIssuanceIdempotent(
+    request: PickupIssuanceIdempotencyRequest,
+    mutation: () => PickupIssuanceMutation,
+  ): PickupIssuanceResult;
   consumeActionNonce(input: ConsumeActionNonceInput): void;
   withTransaction<T>(operation: (
     repository: ClaimGateRepository,
@@ -148,6 +171,11 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
     approveClaim: (input) => { assertActive(); return approveClaimDecision(context, input); },
     rejectClaim: (input) => { assertActive(); return rejectClaimDecision(context, input); },
     unlockClaim: (input) => { assertActive(); return unlockClaimDecision(context, input); },
+    getServerInternalPickupContext: (instanceId, claimId) => {
+      assertActive(); return readPickupContext(context, instanceId, claimId);
+    },
+    issuePickupPass: (input) => { assertActive(); return issuePass(context, input); },
+    completePickupHandoff: (input) => { assertActive(); return completeHandoff(context, input); },
     listClaimEvents: (instanceId, claimId, limit) => {
       assertActive();
       readClaim(context, instanceId, claimId);
@@ -170,6 +198,10 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
     runIdempotent: (request, mutation) => {
       assertActive();
       return executeIdempotent(context, request, mutation);
+    },
+    runPickupIssuanceIdempotent: (request, mutation) => {
+      assertActive();
+      return executePickupIssuanceIdempotent(context, request, mutation);
     },
     consumeActionNonce: (input) => { assertActive(); consumeNonce(context, input); },
     withTransaction: (operation) => {

@@ -14,7 +14,16 @@ const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    const sensitivePickupHeaders = [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Cache-Control", value: "private, no-store" },
+    ];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      { source: "/api/claims/:claimId/pickup-pass/issue", headers: sensitivePickupHeaders },
+      { source: "/api/claims/:claimId/pickup-pass/reissue", headers: sensitivePickupHeaders },
+      { source: "/api/staff/claims/:claimId/handoff", headers: sensitivePickupHeaders },
+    ];
   },
 };
 
