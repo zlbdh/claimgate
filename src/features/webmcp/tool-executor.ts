@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { ClaimGateToolExecutor, ToolResult } from "./tool-contracts";
+import {
+  TOOL_ERROR_CODES,
+  canonicalToolFailure,
+} from "./tool-errors";
 
 const reportStatus = z.enum(["DRAFT", "PUBLISHED", "RESOLVED", "ARCHIVED"]);
 const publicReport = z.strictObject({
@@ -18,18 +22,11 @@ const candidate = z.strictObject({
   reasons: z.array(z.string().min(1).max(160)).max(8),
   expiresAt: z.number().int().safe().positive(),
 });
-const knownErrorCode = z.enum([
-  "AUTH_REQUIRED", "FORBIDDEN", "VALIDATION_FAILED", "STATE_CHANGED", "NOT_FOUND",
-  "RATE_LIMITED", "ITEM_UNAVAILABLE", "CONFLICT", "INVALID_STATE_TRANSITION",
-  "CONFIGURATION_ERROR", "INTERNAL_ERROR",
-]);
+const knownErrorCode = z.enum(TOOL_ERROR_CODES);
 const errorResponse = z.strictObject({
   error: z.strictObject({ code: knownErrorCode, message: z.string().min(1).max(256) }),
 });
-const INTERNAL_ERROR = Object.freeze({
-  ok: false as const,
-  error: Object.freeze({ code: "INTERNAL_ERROR", message: "Internal server error." }),
-});
+const INTERNAL_ERROR = Object.freeze(canonicalToolFailure("INTERNAL_ERROR"));
 
 type ExecutorOptions = Readonly<{
   fetcher?: typeof fetch;
@@ -38,6 +35,7 @@ type ExecutorOptions = Readonly<{
   defer?: (callback: () => void) => void;
   navigate?: (path: string) => void;
   publishCandidates?: (reportId: string, reportVersion: number, candidates: readonly z.infer<typeof candidate>[]) => void;
+  isCurrent?: () => boolean;
 }>;
 
 async function readJson(response: Response): Promise<unknown> {
@@ -51,18 +49,10 @@ async function failure(response: Response): Promise<ToolResult<never>> {
     const parsed = errorResponse.safeParse(await readJson(response));
     if (!parsed.success) return INTERNAL_ERROR;
     const retry = response.headers.get("retry-after");
-    const retryAfterSeconds = retry && /^(0|[1-9][0-9]{0,4})$/.test(retry)
-      ? Math.min(86_400, Math.max(1, Number(retry)))
+    const retryAfterSeconds = retry && /^[1-9][0-9]{0,4}$/.test(retry) && Number(retry) <= 86_400
+      ? Number(retry)
       : undefined;
-    return {
-      ok: false,
-      error: {
-        ...parsed.data.error,
-        ...(parsed.data.error.code === "RATE_LIMITED" && retryAfterSeconds
-          ? { retryAfterSeconds }
-          : {}),
-      },
-    };
+    return canonicalToolFailure(parsed.data.error.code, retryAfterSeconds);
   } catch {
     return INTERNAL_ERROR;
   }
@@ -84,6 +74,20 @@ export function createToolExecutor(options: ExecutorOptions = {}): ClaimGateTool
   const defer = options.defer ?? ((callback) => setTimeout(callback, 0));
   const navigate = options.navigate ?? (() => undefined);
   const publishCandidates = options.publishCandidates ?? (() => undefined);
+  const isCurrent = options.isCurrent ?? (() => true);
+  const schedule = (effect: () => void): void => {
+    try {
+      defer(() => {
+        try {
+          if (isCurrent()) effect();
+        } catch {
+          // A post-result UI effect cannot rewrite or reject a confirmed HTTP success.
+        }
+      });
+    } catch {
+      // A scheduler failure also leaves the confirmed tool envelope unchanged.
+    }
+  };
 
   const executor: ClaimGateToolExecutor = {
     async createDraft(input) {
@@ -113,7 +117,7 @@ export function createToolExecutor(options: ExecutorOptions = {}): ClaimGateTool
         const result = { ok: true as const, data: {
           reportId: parsed.data.reportId, status: parsed.data.status, version: parsed.data.version,
         }, nextPath: parsed.data.nextPath };
-        defer(() => navigate(parsed.data.nextPath));
+        schedule(() => navigate(parsed.data.nextPath));
         return result;
       } catch {
         return INTERNAL_ERROR;
@@ -159,7 +163,7 @@ export function createToolExecutor(options: ExecutorOptions = {}): ClaimGateTool
         }).safeParse(await readJson(response));
         if (!parsed.success) return INTERNAL_ERROR;
         const result = { ok: true as const, data: parsed.data };
-        defer(() => publishCandidates(input.reportId, parsed.data.reportVersion, parsed.data.candidates));
+        schedule(() => publishCandidates(input.reportId, parsed.data.reportVersion, parsed.data.candidates));
         return result;
       } catch {
         return INTERNAL_ERROR;
@@ -186,7 +190,7 @@ export function createToolExecutor(options: ExecutorOptions = {}): ClaimGateTool
         if (!parsed.success) return INTERNAL_ERROR;
         const { nextPath, ...data } = parsed.data;
         const result = { ok: true as const, data, nextPath };
-        defer(() => navigate(nextPath));
+        schedule(() => navigate(nextPath));
         return result;
       } catch {
         return INTERNAL_ERROR;

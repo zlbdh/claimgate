@@ -4,6 +4,7 @@ import { createReportService } from "@/features/reports/report-service";
 import { createKeyring } from "@/server/security/keyring";
 import { createTestDatabase, type TestDatabase } from "@/server/db/test-harness";
 import { createClaimService } from "./claim-service";
+import { tamperCandidateHandleMac } from "@/test/candidate-handle-tamper";
 
 const START = Date.UTC(2026, 7, 26, 12);
 let testDatabase: TestDatabase | undefined;
@@ -100,7 +101,7 @@ describe("ClaimService staging boundary", () => {
     expect(() => value.claims.stage(value.context, stageInput(value, { expectedVersion: 3 })))
       .toThrow(expect.objectContaining({ code: "CONFLICT" }));
     expect(() => value.claims.stage(value.context, stageInput(value, {
-      candidateHandle: value.handle.replace(/.$/, value.handle.endsWith("A") ? "B" : "A"),
+      candidateHandle: tamperCandidateHandleMac(value.handle),
     }))).toThrow(expect.objectContaining({ code: "CONFLICT" }));
   });
 
@@ -108,7 +109,7 @@ describe("ClaimService staging boundary", () => {
     const value = setup();
     expect(() => value.claims.stage(value.context, stageInput(value, { candidateHandle: "bad" })))
       .toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
-    const tampered = value.handle.replace(/.$/, value.handle.endsWith("A") ? "B" : "A");
+    const tampered = tamperCandidateHandleMac(value.handle);
     expect(() => value.claims.stage(value.context, stageInput(value, {
       candidateHandle: tampered, idempotencyKey: "claim-stage-tamper-001",
     }))).toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));

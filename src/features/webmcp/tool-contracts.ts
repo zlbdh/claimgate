@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { validateCreateReportCommand } from "@/features/reports/report-schema";
+import {
+  TOOL_ERROR_CODES,
+  TOOL_ERROR_MESSAGES,
+  canonicalToolFailure,
+  sanitizeToolFailure,
+  type CanonicalToolError,
+} from "./tool-errors";
 
 export const CLAIMGATE_TOOL_NAMES = Object.freeze([
   "create_lost_report_draft",
@@ -11,7 +19,7 @@ export type ClaimGateToolName = (typeof CLAIMGATE_TOOL_NAMES)[number];
 
 const publicText = z.string().min(1).max(64);
 const idempotencyKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._~-]{15,127}$/);
-const candidateHandle = z.string().regex(
+const candidateHandle = z.string().max(96).regex(
   /^cgch1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.[A-Za-z0-9_-]{43}$/,
 );
 
@@ -47,14 +55,9 @@ type ListInput = z.infer<typeof listInput>;
 type FindInput = z.infer<typeof findInput>;
 type StageInput = z.infer<typeof stageInput>;
 
-export type ToolError = Readonly<{
-  code: string;
-  message: string;
-  retryAfterSeconds?: number;
-}>;
 export type ToolResult<T> =
   | Readonly<{ ok: true; data: T; nextPath?: string }>
-  | Readonly<{ ok: false; error: ToolError }>;
+  | Readonly<{ ok: false; error: CanonicalToolError }>;
 
 type CreateData = Readonly<{ reportId: string; status: "DRAFT"; version: number }>;
 type ReportSummary = Readonly<{
@@ -96,9 +99,16 @@ export type ClaimGateToolExecutor = Readonly<{
 }>;
 
 const errorSchema = z.strictObject({
-  code: z.string().min(1).max(64),
+  code: z.enum(TOOL_ERROR_CODES),
   message: z.string().min(1).max(256),
   retryAfterSeconds: z.number().int().min(1).max(86_400).optional(),
+}).superRefine((value, context) => {
+  if (value.message !== TOOL_ERROR_MESSAGES[value.code]) {
+    context.addIssue({ code: "custom", path: ["message"], message: "Noncanonical tool message" });
+  }
+  if (value.code !== "RATE_LIMITED" && value.retryAfterSeconds !== undefined) {
+    context.addIssue({ code: "custom", path: ["retryAfterSeconds"], message: "Unexpected retry metadata" });
+  }
 });
 const reportSummarySchema = z.strictObject({
   reportId: z.string().min(1).max(128), category: publicText,
@@ -155,8 +165,8 @@ export const TOOL_INPUT_SCHEMAS = Object.freeze({
     properties: {
       category: { type: "string", minLength: 1, maxLength: 64 },
       timeWindow: { type: "object", additionalProperties: false, required: ["from", "to"], properties: {
-        from: { type: "string", minLength: 1, maxLength: 64 },
-        to: { type: "string", minLength: 1, maxLength: 64 },
+        from: { type: "string", minLength: 1, maxLength: 64, format: "date-time" },
+        to: { type: "string", minLength: 1, maxLength: 64, format: "date-time" },
       } },
       area: { type: "string", minLength: 1, maxLength: 64 },
       color: { type: "string", minLength: 1, maxLength: 64 },
@@ -173,7 +183,7 @@ export const TOOL_INPUT_SCHEMAS = Object.freeze({
   },
   find_candidate_matches: {
     type: "object", additionalProperties: false, required: ["reportId"], properties: {
-      reportId: { type: "string", minLength: 1, maxLength: 128 },
+      reportId: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
       limit: { type: "integer", minimum: 1, maximum: 3 },
     },
   },
@@ -181,7 +191,7 @@ export const TOOL_INPUT_SCHEMAS = Object.freeze({
     type: "object", additionalProperties: false,
     required: ["reportId", "candidateHandle", "expectedVersion", "idempotencyKey"],
     properties: {
-      reportId: { type: "string", minLength: 1, maxLength: 128 },
+      reportId: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
       candidateHandle: { type: "string", maxLength: 96, pattern: "^cgch1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.[A-Za-z0-9_-]{43}$" },
       expectedVersion: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
       idempotencyKey: { type: "string", minLength: 16, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._~-]{15,127}$" },
@@ -189,14 +199,8 @@ export const TOOL_INPUT_SCHEMAS = Object.freeze({
   },
 } as const);
 
-const VALIDATION_ERROR = Object.freeze({
-  ok: false as const,
-  error: Object.freeze({ code: "VALIDATION_FAILED", message: "The submitted data is invalid." }),
-});
-const INTERNAL_ERROR = Object.freeze({
-  ok: false as const,
-  error: Object.freeze({ code: "INTERNAL_ERROR", message: "Internal server error." }),
-});
+const VALIDATION_ERROR = Object.freeze(canonicalToolFailure("VALIDATION_FAILED"));
+const INTERNAL_ERROR = Object.freeze(canonicalToolFailure("INTERNAL_ERROR"));
 
 function makeTool(
   name: ClaimGateToolName,
@@ -209,8 +213,19 @@ function makeTool(
     async execute(untrusted) {
       const parsed = schemas[name].safeParse(untrusted);
       if (!parsed.success) return { ...VALIDATION_ERROR, error: { ...VALIDATION_ERROR.error } };
+      let input: unknown = parsed.data;
+      if (name === "create_lost_report_draft") {
+        try {
+          input = validateCreateReportCommand(parsed.data);
+        } catch {
+          return { ...VALIDATION_ERROR, error: { ...VALIDATION_ERROR.error } };
+        }
+      }
       try {
-        const result = await run(parsed.data as never);
+        const raw = await run(input as never);
+        const result = raw && typeof raw === "object" && "ok" in raw && raw.ok === false
+          ? sanitizeToolFailure(raw)
+          : raw;
         const bounded = outputSchemas[name].safeParse(result);
         if (!bounded.success || JSON.stringify(bounded.data).length > 32_768) {
           return { ...INTERNAL_ERROR, error: { ...INTERNAL_ERROR.error } };

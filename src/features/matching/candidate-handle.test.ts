@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import { DomainError } from "@/shared/domain-error";
+import { tamperCandidateHandleMac } from "@/test/candidate-handle-tamper";
 import {
   mintCandidateHandles,
   preflightCandidateHandle,
@@ -71,10 +72,8 @@ describe("opaque candidate handles", () => {
 
   it("invalidates tamper, expiry, cross-context and every current snapshot change", () => {
     const [handle] = mintCandidateHandles(base);
-    const parts = handle!.split(".");
-    const tamperedMac = `${parts[3]![0] === "A" ? "B" : "A"}${parts[3]!.slice(1)}`;
     const changed = [
-      { handle: `${parts.slice(0, 3).join(".")}.${tamperedMac}` },
+      { handle: tamperCandidateHandleMac(handle!) },
       { demoInstanceId: "other-instance" },
       { reportId: "other-report" },
       { reportVersion: 3 },
@@ -105,5 +104,16 @@ describe("opaque candidate handles", () => {
     const preflight = preflightCandidateHandle({ handle: valid!, nowMs: NOW_MS });
     expect(() => resolveCandidateHandle({ ...base, preflight, ceilingMs: NOW_MS + 899_000 }))
       .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
+  });
+
+  it("keeps canonical byte-flip tampering structurally valid across 64 MACs", () => {
+    for (let index = 0; index < 64; index += 1) {
+      const [handle] = mintCandidateHandles({
+        ...base,
+        inventoryItemIds: [`internal-seeded-${index}`],
+      });
+      const changed = tamperCandidateHandleMac(handle!);
+      expect(() => preflightCandidateHandle({ handle: changed, nowMs: NOW_MS })).not.toThrow();
+    }
   });
 });

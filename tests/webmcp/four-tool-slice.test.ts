@@ -160,6 +160,108 @@ describe("Task 6A exact WebMCP contracts", () => {
       );
     }
   });
+
+  it("rebuilds every final error from the closed canonical code table", async () => {
+    const messages = {
+      AUTH_REQUIRED: "Authentication is required.",
+      FORBIDDEN: "You are not allowed to perform this action.",
+      VALIDATION_FAILED: "The submitted data is invalid.",
+      STATE_CHANGED: "The resource state has changed.",
+      NOT_FOUND: "The requested resource was not found.",
+      RATE_LIMITED: "Too many requests. Please try again later.",
+      ITEM_UNAVAILABLE: "The item is not available.",
+      CONFLICT: "The request conflicts with the current resource state.",
+      INVALID_STATE_TRANSITION: "The requested state transition is not allowed.",
+      CONFIGURATION_ERROR: "The service is not configured correctly.",
+      INTERNAL_ERROR: "Internal server error.",
+    } as const;
+    for (const [code, message] of Object.entries(messages)) {
+      const target = {
+        ...executor(),
+        listReports: vi.fn(async () => ({
+        ok: false,
+        error: { code, message: "session=SECRET C:/private.db" },
+        })) as never,
+      } satisfies ClaimGateToolExecutor;
+      const result = await createClaimGateTools(target).list_my_reports.execute({});
+      expect(result).toEqual({ ok: false, error: { code, message } });
+    }
+
+    const target = {
+      ...executor(),
+      listReports: vi.fn(async () => ({
+        ok: false,
+        error: { code: "SQLITE_PRIVATE_PATH", message: "C:/secret.db", privatePath: "C:/secret.db" },
+      })) as never,
+    } satisfies ClaimGateToolExecutor;
+    await expect(createClaimGateTools(target).list_my_reports.execute({})).resolves.toEqual({
+      ok: false, error: { code: "INTERNAL_ERROR", message: "Internal server error." },
+    });
+    const throwing = {
+      ...executor(),
+      listReports: vi.fn(async () => { throw new Error("C:/secret.db", { cause: { session: "SECRET" } }); }),
+    } satisfies ClaimGateToolExecutor;
+    expect(JSON.stringify(await createClaimGateTools(throwing).list_my_reports.execute({})))
+      .toBe('{"ok":false,"error":{"code":"INTERNAL_ERROR","message":"Internal server error."}}');
+  });
+
+  it("finishes create semantics and normalization before executor delegation", async () => {
+    const target = executor();
+    const tool = createClaimGateTools(target).create_lost_report_draft;
+    for (const patch of [
+      { timeWindow: { from: "not-a-date", to: VALID_CREATE.timeWindow.to } },
+      { timeWindow: { from: VALID_CREATE.timeWindow.to, to: VALID_CREATE.timeWindow.from } },
+      { publicTags: ["Wireless", " wireless "] },
+    ]) {
+      vi.mocked(target.createDraft).mockClear();
+      await expect(tool.execute({ ...VALID_CREATE, ...patch })).resolves.toMatchObject({
+        ok: false, error: { code: "VALIDATION_FAILED" },
+      });
+      expect(target.createDraft).not.toHaveBeenCalled();
+    }
+    await createClaimGateTools(target).find_candidate_matches.execute({ reportId: "bad/path" });
+    await createClaimGateTools(target).stage_claim_candidate.execute({
+      reportId: "report-public", candidateHandle: "x".repeat(97), expectedVersion: 1,
+      idempotencyKey: "stage-oversized-000001",
+    });
+    expect(target.findCandidates).not.toHaveBeenCalled();
+    expect(target.stageClaim).not.toHaveBeenCalled();
+
+    await tool.execute({
+      ...VALID_CREATE,
+      category: "  EARBUDS  ",
+      area: "  Library  ",
+      color: " BLACK ",
+      publicTags: [" Wireless ", "Charging–Case"],
+      publicDescription: "  Black   wireless case.  ",
+    });
+    expect(target.createDraft).toHaveBeenCalledWith(expect.objectContaining({
+      category: "earbuds",
+      area: "library",
+      color: "black",
+      publicTags: ["wireless", "charging-case"],
+      publicDescription: "Black wireless case.",
+    }));
+  });
+
+  it("mirrors runtime identifiers and date-time annotations in discovery schemas", () => {
+    const tools = createClaimGateTools(executor());
+    expect(tools.create_lost_report_draft.inputSchema).toMatchObject({
+      properties: { timeWindow: { properties: {
+        from: { format: "date-time" },
+        to: { format: "date-time" },
+      } } },
+    });
+    expect(tools.find_candidate_matches.inputSchema).toMatchObject({
+      properties: { reportId: { pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" } },
+    });
+    expect(tools.stage_claim_candidate.inputSchema).toMatchObject({
+      properties: {
+        reportId: { pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
+        candidateHandle: { maxLength: 96 },
+      },
+    });
+  });
 });
 
 describe("Task 6A legal page tool matrix", () => {

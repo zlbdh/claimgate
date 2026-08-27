@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import type { BrowserCandidateDto } from "@/features/reports/report-types";
 import { CandidateCard } from "./candidate-card";
@@ -29,54 +29,96 @@ export interface CandidateFinderProps {
   className?: string;
 }
 
+type FinderState = Readonly<{
+  scopeKey: string;
+  candidates: readonly BrowserCandidateDto[];
+  message: string;
+  busy: boolean;
+  error?: string;
+}>;
+
+function idleState(scopeKey: string): FinderState {
+  return {
+    scopeKey,
+    candidates: [],
+    message: "Candidates are loaded only when you ask.",
+    busy: false,
+  };
+}
+
 export function CandidateFinder({ reportId, reportVersion, fetcher = fetch, className = "" }: CandidateFinderProps) {
-  const [candidates, setCandidates] = useState<BrowserCandidateDto[]>([]);
-  const [message, setMessage] = useState("Candidates are loaded only when you ask.");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const scopeKey = `${reportId}:${reportVersion ?? "unknown"}`;
+  const [stored, setStored] = useState<FinderState>(() => idleState(scopeKey));
+  const state = stored.scopeKey === scopeKey ? stored : idleState(scopeKey);
+  const requestGeneration = useRef(0);
+  const activeController = useRef<AbortController | undefined>(undefined);
   const publishCandidates = useWebMcpCandidatePublisher();
 
+  useEffect(() => () => {
+    requestGeneration.current += 1;
+    activeController.current?.abort();
+    activeController.current = undefined;
+  }, [scopeKey]);
+
   async function findCandidates() {
-    setBusy(true);
-    setError(undefined);
+    activeController.current?.abort();
+    const controller = new AbortController();
+    activeController.current = controller;
+    const generation = ++requestGeneration.current;
+    const isCurrent = () => !controller.signal.aborted && requestGeneration.current === generation;
+    setStored({ ...idleState(scopeKey), busy: true });
     try {
       const response = await fetcher(`/api/reports/${reportId}/matches?limit=3`, {
         method: "GET",
         credentials: "same-origin",
         cache: "no-store",
         headers: { Accept: "application/json" },
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error("request failed");
       const parsed = responseSchema.safeParse(await response.json());
       if (!parsed.success) throw new Error("invalid response");
-      setCandidates(parsed.data.candidates);
-      setMessage(parsed.data.message);
+      if (!isCurrent()) return;
+      setStored({
+        scopeKey,
+        candidates: parsed.data.candidates,
+        message: parsed.data.message,
+        busy: true,
+      });
       publishCandidates(reportId, parsed.data.reportVersion, parsed.data.candidates);
     } catch {
-      setCandidates([]);
+      if (!isCurrent()) return;
       if (reportVersion !== undefined) publishCandidates(reportId, reportVersion, []);
-      setError("Candidates could not be loaded. Please wait and try again.");
+      setStored({
+        ...idleState(scopeKey),
+        busy: true,
+        error: "Candidates could not be loaded. Please wait and try again.",
+      });
     } finally {
-      setBusy(false);
+      if (isCurrent()) {
+        setStored((current) => current.scopeKey === scopeKey
+          ? { ...current, busy: false }
+          : current);
+      }
     }
   }
 
   return (
-    <section className={`candidate-finder ${className}`.trim()} aria-labelledby="candidate-finder-title" aria-busy={busy}>
+    <section className={`candidate-finder ${className}`.trim()} aria-labelledby="candidate-finder-title" aria-busy={state.busy}>
       <div className="candidate-finder-heading">
         <div>
           <p className="workspace-kicker">Step 02 · Match</p>
           <h2 id="candidate-finder-title">Privacy-safe candidates</h2>
         </div>
-        <button type="button" onClick={findCandidates} disabled={busy}>
-          {busy ? "Searching…" : "Find candidates"}
+        <button type="button" onClick={findCandidates} disabled={state.busy}>
+          {state.busy ? "Searching…" : "Find candidates"}
         </button>
       </div>
-      {error ? <p className="workspace-state error-state" role="alert">{error}</p> : (
-        <p className="candidate-message" role="status" aria-live="polite">{message}</p>
+      {state.error ? <p className="workspace-state error-state" role="alert">{state.error}</p> : (
+        <p className="candidate-message" role="status" aria-live="polite">{state.message}</p>
       )}
-      {candidates.length > 0 && (
-        <div className="candidate-grid">{candidates.map((candidate) => (
+      {state.candidates.length > 0 && (
+        <div className="candidate-grid">{state.candidates.map((candidate) => (
           <CandidateCard candidate={candidate} key={candidate.candidateHandle} />
         ))}</div>
       )}
