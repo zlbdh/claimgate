@@ -85,3 +85,12 @@
 - **踩坑**：并行 build/native 会让 `.next/standalone` 在清理窗口出现 EBUSY/缺文件假红；最终门必须独占并串行。原生 cleanup 不能因 `browser.close()` 失败跳过 server/temp 清理；现在两级终止、确认退出并限制删除到系统 Temp。
 - **门禁决策**：仅按工具名包含 `issue/reissue/handoff` 会漏同义人工写工具；改为精确九工具 allowlist，并扫描 WebMCP 源码禁止 issue/reissue/evidence/approve/reject/unlock/handoff/publish/archive/switch-role 十类人工写路径。
 - **验证**：提交 `0480fbb`；完整 `verify` 连续两轮通过（110 files / 971 tests）；生产 E2E 7/7；Chrome 151 原生九工具、runtime evidence/pickup transport canary 与最终 teardown 通过；无配置接口仍为 93-byte generic 500；三位独立复审无剩余 Critical/Important。
+
+## 2026-08-27 [Task 11：风险路径 E2E 与 clean 原生三跑]
+
+- **记录**：2026-08-27 21:32 by Codex — 记录浏览器风险矩阵、exact-13 契约和原子证据发布，供部署后复用同一验收路径。
+- **浏览器补证**：同实例两个竞争 Claim 最终严格一胜一败；两个 BrowserContext 与清 Cookie 重开完全隔离；一次解锁后正确证据可回到 UNDER_REVIEW；双标签 stale update 显示 STATE_CHANGED 且胜出数据不丢；服务端 digest-valid 过期凭证精确 403/FORBIDDEN；390px create→match→evidence 无溢出。
+- **最终态**：双标签 handoff 响应集合严格为 COLLECTED + ALREADY_COLLECTED；Staff、Claimant 和 RESOLVED report 均只读，终态仅保留 get_claim_status。
+- **原生证据**：新增三进程串行 wrapper，锁死 exact-13 阶段、每阶段 tools/schema、exact-9、单实例、人工工具缺失、Home=[]、cleanup 与 runtime canary；artifact 与 testing.md 使用同一可回滚发布事务并带 SHA-256。
+- **踩坑**：测试复制生产 HMAC 会把 digest mismatch 误判为 expiry；改为隔离 react-server worker 直接复用生产 keyring/pickup crypto。证据发布在两个目标换入后才 committed，backup 清理失败不得触发破坏性回滚。
+- **验证**：代码提交 `0f5d241`；完整 verify 连续两轮（114 files / 979 tests）、生产 E2E 13/13。随后 clean worktree 严格三跑，三次 base commit 均为 `0f5d2413…`、同 build、unique run ID、9/9、exact-13、cleanup=true、SHA 全匹配、Temp 残留 0；最终证据提交 `904cba3`。
