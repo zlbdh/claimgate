@@ -119,3 +119,11 @@
 - **根因**：角色切换只在 Home 渲染且固定重定向 `/`，而审批、签发会按设计改变队列可见性；导航没有携带经过授权的 Claim 上下文。
 - **修复**：表单只新增可选 opaque `resumeClaimId`，严格接受 2 或 3 个字段；Claim 查询、目标 Claimant 所有权、nonce、额度和会话旋转在同一事务内完成，响应位置仅由数据库 Claim 和目标角色生成；两类 Claim 页面复用共享 CSRF helper 与角色栏，并用真实 Copy/Ctrl+V E2E 覆盖完整交接。
 - **教训**：跨身份恢复业务上下文时，只传闭合领域 ID，并在一次事务中先授权再派生站内路径；不要接受 `returnTo`、URL、查询串或片段，也不要让失败验证消耗可重试的一次性能力。
+
+## 2026-08-28 [Task 13：提交前本地与外部门禁]
+
+- **记录**：2026-08-28 04:25 by Codex — 记录公开候选扫描、匿名外部核验和 Devpost draft 证据边界，避免把“草稿已保存”误报为“已提交”。
+- **本地门禁**：`--prepublish` 从 Git 的 tracked + untracked non-ignored 候选集检查八份提交资料、README/架构/演示/Devpost 英文契约、五个受控 pending token，以及环境文件、数据库、归档、未知二进制、真实地址、本机路径、SSH 端点、私钥和高熵 secret；每个候选先经过 lstat、realpath 与根目录边界检查。
+- **外部门禁**：`--final` 要求规范公开 URL 和全量 A/AAAA 公网解析；匿名核对 live health、GitHub public/main/MIT 与 raw README/LICENSE、YouTube Public/<180 秒/音频及 video ID，以及仓库外 canonical Devpost JSON、缩略图和至少两张有界 PNG/JPEG。
+- **边界决策**：final 是 Devpost 提交前的 draft gate；证据必须写明 `draftSaved=true`、`submitted=false`，只有管理页明确显示 `Submitted` 才能另行记录终态。
+- **验证**：TDD 目标测试 114/114；完整 Vitest 130 files passed、1 skipped，1238 tests passed、3 skipped；lint、typecheck、文件行数、secret-surface、node syntax、diff-check 与真实 `--prepublish` 全部通过。外部 final 测试均使用 mock，未冒充真实公开验收。
