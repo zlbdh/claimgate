@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { parseHandoffClientResponse } from "@/features/claims/pickup-pass-client-response";
 
 function clearPassword(input: HTMLInputElement | null): void {
   if (input) input.value = "";
@@ -64,10 +65,19 @@ export function StaffHandoffForm(props: {
         setMessage("Credential denied or state changed. Reload before another handoff attempt.");
         return;
       }
+      const text = await response.text();
+      if (text.length > 1_024) throw new Error("invalid handoff response");
+      parseHandoffClientResponse(JSON.parse(text) as unknown, {
+        claimId: props.claimId,
+        currentClaimVersion: props.claimVersion,
+        currentItemVersion: props.itemVersion,
+        currentReportVersion: props.reportVersion,
+        expectedGeneration: props.generation,
+      });
       router.push(`/staff/claims/${props.claimId}`);
       router.refresh();
     } catch {
-      setMessage("The connection failed. The credential field remains empty; reload before retrying.");
+      setMessage("Invalid handoff response or connection failure. The credential field remains empty; reload before retrying.");
     } finally {
       clearPassword(inputRef.current);
     }

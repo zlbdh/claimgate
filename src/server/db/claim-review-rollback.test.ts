@@ -94,8 +94,12 @@ const INJECTIONS = {
     BEGIN SELECT RAISE(IGNORE); END`,
   event: `CREATE TRIGGER injected_event BEFORE INSERT ON claim_events
     BEGIN SELECT RAISE(ABORT, 'injected event'); END`,
+  event_ignore: `CREATE TRIGGER injected_event_ignore BEFORE INSERT ON claim_events
+    BEGIN SELECT RAISE(IGNORE); END`,
   idempotency: `CREATE TRIGGER injected_idempotency BEFORE INSERT ON idempotency_records
     WHEN NEW.action = 'claim_approve' BEGIN SELECT RAISE(ABORT, 'injected idempotency'); END`,
+  idempotency_ignore: `CREATE TRIGGER injected_idempotency_ignore BEFORE INSERT ON idempotency_records
+    WHEN NEW.action = 'claim_approve' BEGIN SELECT RAISE(IGNORE); END`,
 } as const;
 
 describe("claim approval aggregate rollback", () => {
@@ -111,10 +115,12 @@ describe("claim approval aggregate rollback", () => {
     expect(snapshot()).toEqual(before);
   });
 
-  it("rolls back evidence Claim mutation and idempotency when the final event insert fails", () => {
+  it.each([INJECTIONS.event, INJECTIONS.event_ignore])(
+    "rolls back evidence Claim mutation and idempotency when the final event insert fails",
+    (injection) => {
     const value = setup();
     const before = snapshot();
-    testDatabase!.database.exec(INJECTIONS.event);
+    testDatabase!.database.exec(injection);
     expect(() => value.service.submitEvidence({
       demoInstanceId: value.instance.demoInstanceId,
       actorId: "claimant-demo",

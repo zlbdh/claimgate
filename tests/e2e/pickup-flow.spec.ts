@@ -101,6 +101,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   const pageErrors: string[] = [];
   page.on("console", (message) => consoleMessages.push(message.text()));
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.clock.install();
   await installModelContext(page);
   const claimId = await reachApproved(page);
   await expect(page.getByRole("button", { name: "Generate pickup pass" })).toBeVisible();
@@ -126,10 +127,19 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
     url: location.href,
   })).then((value) => value.includes(issued.token))).toBe(false);
 
-  await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/$/);
   await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`/claimant/claims/${claimId}$`));
   await expect(page.locator("body")).not.toContainText(issued.token);
   const restoredCanvas = page.locator("canvas");
+  if (await restoredCanvas.count()) {
+    expect(await restoredCanvas.evaluate((canvas) => (canvas as HTMLCanvasElement).width)).toBe(0);
+  }
+  await page.goForward();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expect(page.locator("body")).not.toContainText(issued.token);
   if (await restoredCanvas.count()) {
     expect(await restoredCanvas.evaluate((canvas) => (canvas as HTMLCanvasElement).width)).toBe(0);
   }
@@ -142,6 +152,13 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   expect(reissued.token).not.toBe(issued.token);
   await page.getByRole("button", { name: "Reveal credential" }).click();
   await expect(page.getByText(reissued.token)).toBeVisible();
+  await page.clock.fastForward(10 * 60_000 + 1_000);
+  await expect(page.locator("body")).not.toContainText(reissued.token);
+  await expect(page.getByText(/credential expired/i)).toBeVisible();
+  const expiredCanvas = page.locator("canvas");
+  if (await expiredCanvas.count()) {
+    expect(await expiredCanvas.evaluate((canvas) => (canvas as HTMLCanvasElement).width)).toBe(0);
+  }
 
   await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
   await page.getByRole("button", { name: "Switch to Staff role" }).click();

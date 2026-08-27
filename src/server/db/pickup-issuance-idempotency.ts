@@ -128,7 +128,7 @@ export function runPickupIssuanceIdempotent(
     const transientToken = producedFields.get("transientToken");
     parsePickupPassToken(transientToken);
     const safe = canonicalAck(context, request, producedFields.get("safeAck"), false);
-    context.database.prepare(`
+    const inserted = context.database.prepare(`
       INSERT INTO idempotency_records (
         demo_instance_id, actor_id, action, key_digest,
         request_fingerprint_digest, result_json, created_at_ms
@@ -137,6 +137,7 @@ export function runPickupIssuanceIdempotent(
       request.demoInstanceId, request.actorId, request.action, keyDigest,
       fingerprintDigest, safe.json, context.now(),
     );
+    if (inserted.changes !== 1) throw new DomainError("CONFIGURATION_ERROR");
     return Object.freeze({
       issuance: "ISSUED",
       ack: safe.ack,

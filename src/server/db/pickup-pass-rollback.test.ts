@@ -28,9 +28,10 @@ function setup(issue = false) {
     status, attempts, evidence_eligible, reviewer_actor_id, unlock_count, pass_generation, version
   ) VALUES (?, 'claim-rollback-pickup', 'report-rollback-pickup', ?, 'claimant-demo',
     'APPROVED', 1, 1, 'staff-demo', 0, 0, 5)`).run(instance.demoInstanceId, item.inventoryItemId);
+  let randomValue = 0;
   const service = createPickupPassService({
     repository, keyring: createKeyring(TEST_MASTER_KEY), now: () => 100_000,
-    randomBytes: (size) => Buffer.alloc(size, size),
+    randomBytes: (size) => Buffer.alloc(size, ++randomValue),
   });
   const claimant = {
     demoInstanceId: instance.demoInstanceId,
@@ -66,6 +67,17 @@ const ISSUE_FAILURES = {
     WHEN NEW.event_type = 'PASS_ISSUED' BEGIN SELECT RAISE(ABORT, 'issue event'); END`,
   idempotency: `CREATE TRIGGER fail_issue_idempotency BEFORE INSERT ON idempotency_records
     WHEN NEW.action = 'pickup_issue' BEGIN SELECT RAISE(ABORT, 'issue idempotency'); END`,
+  event_ignore: `CREATE TRIGGER ignore_issue_event BEFORE INSERT ON claim_events
+    WHEN NEW.event_type = 'PASS_ISSUED' BEGIN SELECT RAISE(IGNORE); END`,
+  idempotency_ignore: `CREATE TRIGGER ignore_issue_idempotency BEFORE INSERT ON idempotency_records
+    WHEN NEW.action = 'pickup_issue' BEGIN SELECT RAISE(IGNORE); END`,
+} as const;
+
+const REISSUE_FAILURES = {
+  event_ignore: `CREATE TRIGGER ignore_reissue_event BEFORE INSERT ON claim_events
+    WHEN NEW.event_type = 'PASS_REISSUED' BEGIN SELECT RAISE(IGNORE); END`,
+  idempotency_ignore: `CREATE TRIGGER ignore_reissue_idempotency BEFORE INSERT ON idempotency_records
+    WHEN NEW.action = 'pickup_reissue' BEGIN SELECT RAISE(IGNORE); END`,
 } as const;
 
 const HANDOFF_FAILURES = {
@@ -83,6 +95,10 @@ const HANDOFF_FAILURES = {
     WHEN NEW.event_type = 'HANDOFF_COMPLETED' BEGIN SELECT RAISE(ABORT, 'handoff event'); END`,
   idempotency: `CREATE TRIGGER fail_handoff_idempotency BEFORE INSERT ON idempotency_records
     WHEN NEW.action = 'handoff' BEGIN SELECT RAISE(ABORT, 'handoff idempotency'); END`,
+  event_ignore: `CREATE TRIGGER ignore_handoff_event BEFORE INSERT ON claim_events
+    WHEN NEW.event_type = 'HANDOFF_COMPLETED' BEGIN SELECT RAISE(IGNORE); END`,
+  idempotency_ignore: `CREATE TRIGGER ignore_handoff_idempotency BEFORE INSERT ON idempotency_records
+    WHEN NEW.action = 'handoff' BEGIN SELECT RAISE(IGNORE); END`,
 } as const;
 
 describe("pickup aggregate rollback", () => {
@@ -93,6 +109,16 @@ describe("pickup aggregate rollback", () => {
     expect(() => value.service.issue(value.claimant, "claim-rollback-pickup", {
       expectedClaimVersion: 5, idempotencyKey: `pickup-rollback-${name}`,
     })).toThrow();
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(Object.entries(REISSUE_FAILURES))("rolls reissue back after injected %s", (name, sql) => {
+    const value = setup(true);
+    const before = snapshot();
+    testDatabase!.database.exec(sql);
+    expect(() => value.service.reissue(value.claimant, "claim-rollback-pickup", {
+      expectedClaimVersion: 6, idempotencyKey: `reissue-rollback-${name}`,
+    })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
     expect(snapshot()).toEqual(before);
   });
 

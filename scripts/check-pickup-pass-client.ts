@@ -40,6 +40,12 @@ for (const [pattern, label] of [
   ["pagehide", "pagehide cleanup"],
   ["pageshow", "pageshow cleanup"],
   ["popstate", "history cleanup"],
+  ["new AbortController", "request abort controller"],
+  ["signal: controller.signal", "fetch abort signal"],
+  ["epochRef", "request generation gate"],
+  ['document.createElement("canvas")', "detached QR canvas"],
+  ["drawImage(detached", "generation-gated canvas commit"],
+  ["parsePickupIssuanceClientResponse", "strict issuance response parser"],
 ] as const) requireText(panel, pattern, label);
 forbid(panel, /toDataURL|data:image|localStorage|sessionStorage|history\.(?:push|replace)State|console\.|analytics/i,
   "credential persistence, URL data, logging, or analytics");
@@ -53,6 +59,7 @@ for (const [pattern, label] of [
   ["pagehide", "Staff pagehide cleanup"],
   ["pageshow", "Staff pageshow cleanup"],
   ["finally", "Staff finally cleanup"],
+  ["parseHandoffClientResponse", "strict handoff response parser"],
 ] as const) requireText(handoff, pattern, label);
 if (handoff.indexOf("clearPassword(inputRef.current)") > handoff.indexOf("await (props.fetcher")) {
   throw new Error("pickup client check did not clear Staff password before transport");

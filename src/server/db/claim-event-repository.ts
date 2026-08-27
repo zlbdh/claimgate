@@ -33,7 +33,7 @@ export function appendClaimEvent(
   ) throw new DomainError("VALIDATION_FAILED");
   const event = { eventType, actorId: actor, result: EVENT_RESULT[eventType] };
   assertNoInternalInventoryIdentity(context, event, "VALIDATION_FAILED");
-  context.database.prepare(`
+  const inserted = context.database.prepare(`
     INSERT INTO claim_events (
       demo_instance_id, id, claim_id, event_type, actor_id, result, occurred_at_ms
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -46,6 +46,7 @@ export function appendClaimEvent(
     event.result,
     context.now(),
   );
+  if (inserted.changes !== 1) throw new DomainError("CONFIGURATION_ERROR");
 }
 
 export function listClaimEvents(

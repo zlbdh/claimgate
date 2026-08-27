@@ -13,7 +13,10 @@ const TOKEN = "abcdefghijklmnopqrstuA";
 
 describe("pickup pass client-only credential lifecycle", () => {
   it("draws to canvas, keeps the default DOM masked and reveals only on explicit action", async () => {
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ clearRect: vi.fn() } as never);
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      clearRect: vi.fn(), drawImage,
+    } as never);
     const fetcher = vi.fn(async () => Response.json({
       issuance: "ISSUED", claimId: "claim-ui", status: "PICKUP_READY",
       claimVersion: 6, generation: 1, expiresAtMs: Date.now() + 600_000, token: TOKEN,
@@ -24,9 +27,10 @@ describe("pickup pass client-only credential lifecycle", () => {
     />);
     fireEvent.click(screen.getByRole("button", { name: /generate pickup pass/i }));
     await waitFor(() => expect(QRCode.toCanvas).toHaveBeenCalled());
-    expect(QRCode.toCanvas).toHaveBeenCalledWith(
-      container.querySelector("canvas"), TOKEN, expect.any(Object),
-    );
+    const visible = container.querySelector("canvas")!;
+    const detached = vi.mocked(QRCode.toCanvas).mock.calls[0]![0] as HTMLCanvasElement;
+    expect(detached).not.toBe(visible);
+    await waitFor(() => expect(drawImage).toHaveBeenCalledWith(detached, 0, 0));
     expect(container.textContent).not.toContain(TOKEN);
     expect(screen.getByText(/••••/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /reveal credential/i }));
@@ -95,7 +99,12 @@ describe("pickup pass client-only credential lifecycle", () => {
     fireEvent.submit(screen.getByRole("form", { name: /staff pickup handoff/i }));
     expect(fetcher).toHaveBeenCalledOnce();
     expect(input.value).toBe("");
-    resolveFetch(Response.json({ completion: "COLLECTED" }));
+    resolveFetch(Response.json({
+      kind: "handoff_ack", claimId: "claim-ui", completion: "COLLECTED",
+      claimStatus: "COLLECTED", claimVersion: 7,
+      itemStatus: "RETURNED", itemVersion: 5,
+      reportStatus: "RESOLVED", reportVersion: 4, generation: 1,
+    }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     input.value = TOKEN;
     window.dispatchEvent(new Event("pageshow"));
