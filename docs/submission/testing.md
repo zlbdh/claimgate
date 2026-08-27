@@ -1,96 +1,96 @@
-# ClaimGate Task 11 原生 WebMCP 三次验收
+# ClaimGate Native WebMCP Three-Run Acceptance
 
-## 结论
+## Conclusion
 
-同一正式构建在三个严格串行、彼此独立的进程中完成原生 Chrome 151 验收。每次均创建全新临时 SQLite 与单一 demo instance，执行全部九个 WebMCP 工具，人工完成发布、举证、审批、凭证签发与交接，最后确认 Home 工具集为空并完成浏览器、server 和临时目录清理。
+The same production build passed native Chrome 151 acceptance in three strictly serial runs, each executed in an independent process. Every run created a fresh temporary SQLite database and exactly one demo instance, exercised all nine WebMCP tools, completed report publication, evidence submission, approval, pickup-pass generation, and handoff through manual actions, then confirmed that the Home tool set was empty before cleaning up the browser, server, and temporary directory.
 
-本证据来自 clean worktree，base commit 与被构建源码一致。
+This evidence was produced from a clean worktree. The base commit matches the source that was built.
 
-## 构建与环境
+## Build and Environment
 
-| 字段 | 值 |
+| Field | Value |
 | --- | --- |
-| Base commit | `0f5d2413a34d6666017c25c21f029d065a13564a` |
-| Next build ID | `ObqMwp2L2MqRBOqNz9Ymu` |
+| Base commit | `04c618da85f63d3c5485b90f3a8924f8e919bf37` |
+| Next build ID | `J6kGt3e4z_6cAce9eLg4v` |
 | Source state | `clean` |
 | Node | `v22.20.0` |
 | Playwright | `1.62.1` |
 | Browser | Chrome for Testing `151.0.7922.34` |
 | Feature | `--enable-features=WebMCPTesting` |
-| 生成时间 | 2026-08-27T13:30:31.389Z |
+| Generated at | 2026-08-27T21:12:55.193Z |
 
-执行命令：
+Commands:
 
 ```powershell
 npm run accept:native:3
-# Task 11 commit 后的最终证据门：
+# Final clean-evidence gate for the reviewed implementation commit:
 npm run accept:native:3:clean
 ```
 
-该命令只构建一次，然后依次启动三个独立 verifier 子进程；任一子进程、结构校验、cleanup 或 artifact 校验失败都会立即终止，且不会发布部分成功证据。
+The command builds once and then launches three independent verifier child processes in sequence. A failure in any child process, structural validation, cleanup step, or artifact validation stops the run immediately, and no partial-success evidence is published.
 
-## 三次运行摘要
+## Three-Run Summary
 
 | Run | Run ID | Started UTC | Ended UTC | Duration | Browser | Tools | Human-only absent | Home teardown | Cleanup |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `b1762128-c16c-4fbb-934c-37051022f2c5` | 2026-08-27T13:30:09.791Z | 2026-08-27T13:30:18.977Z | 9186 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
-| 2 | `1c9f8313-0731-4830-ba4b-1e082802ac33` | 2026-08-27T13:30:19.666Z | 2026-08-27T13:30:25.177Z | 5511 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
-| 3 | `2204c312-04ca-406c-a615-7cf1b8c87636` | 2026-08-27T13:30:25.877Z | 2026-08-27T13:30:31.348Z | 5471 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
+| 1 | `4147975c-0948-4574-b9b1-e54ed5f21795` | 2026-08-27T21:12:33.008Z | 2026-08-27T21:12:42.688Z | 9680 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
+| 2 | `c6dc2f99-8051-411a-951d-b73da0a31767` | 2026-08-27T21:12:43.405Z | 2026-08-27T21:12:48.974Z | 5569 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
+| 3 | `9e79cced-f5a5-499e-8a10-76f54ac550e9` | 2026-08-27T21:12:49.663Z | 2026-08-27T21:12:55.165Z | 5502 ms | `151.0.7922.34` | 9/9 | PASS | PASS | PASS |
 
-每次结果还验证：`instanceCount=1`、`cleanupVerified=true`、`humanOnlyToolsAbsent=true`，并扫描 tool output、HTML、Agent activity、浏览器/server 日志、storage 与 history，排除 internal inventory ID、runtime evidence canary 和 pickup credential。
+Each result also verifies `instanceCount=1`, `cleanupVerified=true`, and `humanOnlyToolsAbsent=true`. Tool output, HTML, Agent activity, browser and server logs, storage, and history are scanned to exclude internal inventory IDs, the runtime-evidence canary, and the pickup credential.
 
-## Canonical 13-stage matrix
+## Canonical 13-Stage Matrix
 
-下表来自 Run 1；Run 2、Run 3 由相同结构化契约逐项校验。
+The table below comes from Run 1. Runs 2 and 3 are validated field by field against the same structured contract.
 
 | Phase | Observed UTC | Native getTools() |
 | --- | --- | --- |
-| Claimant workspace | 2026-08-27T13:30:15.122Z | `create_lost_report_draft`, `list_my_reports` |
-| DRAFT report | 2026-08-27T13:30:15.435Z | `list_my_reports`, `update_lost_report_draft` |
-| PUBLISHED report | 2026-08-27T13:30:15.794Z | `find_candidate_matches`, `list_my_reports` |
-| PUBLISHED with candidates | 2026-08-27T13:30:15.934Z | `find_candidate_matches`, `list_my_reports`, `stage_claim_candidate` |
-| EVIDENCE_REQUIRED checkpoint | 2026-08-27T13:30:16.135Z | `get_claim_status` |
-| UNDER_REVIEW Claimant | 2026-08-27T13:30:16.478Z | `get_claim_status` |
-| Staff queue | 2026-08-27T13:30:16.882Z | `list_pending_claims` |
-| Staff UNDER_REVIEW claim | 2026-08-27T13:30:17.161Z | `get_claim_review_summary`, `get_claim_status` |
-| Staff APPROVED claim | 2026-08-27T13:30:17.441Z | `get_claim_review_summary`, `get_claim_status` |
-| Claimant APPROVED claim | 2026-08-27T13:30:17.875Z | `get_claim_status`, `get_pickup_instructions` |
-| Staff PICKUP_READY claim | 2026-08-27T13:30:18.373Z | `get_claim_review_summary`, `get_claim_status` |
-| Staff COLLECTED claim | 2026-08-27T13:30:18.636Z | `get_claim_status` |
-| Home teardown | 2026-08-27T13:30:18.839Z | `[]` |
+| Claimant workspace | 2026-08-27T21:12:38.661Z | `create_lost_report_draft`, `list_my_reports` |
+| DRAFT report | 2026-08-27T21:12:38.966Z | `list_my_reports`, `update_lost_report_draft` |
+| PUBLISHED report | 2026-08-27T21:12:39.350Z | `find_candidate_matches`, `list_my_reports` |
+| PUBLISHED with candidates | 2026-08-27T21:12:39.489Z | `find_candidate_matches`, `list_my_reports`, `stage_claim_candidate` |
+| EVIDENCE_REQUIRED checkpoint | 2026-08-27T21:12:39.705Z | `get_claim_status` |
+| UNDER_REVIEW Claimant | 2026-08-27T21:12:40.077Z | `get_claim_status` |
+| Staff queue | 2026-08-27T21:12:40.464Z | `list_pending_claims` |
+| Staff UNDER_REVIEW claim | 2026-08-27T21:12:40.728Z | `get_claim_review_summary`, `get_claim_status` |
+| Staff APPROVED claim | 2026-08-27T21:12:41.008Z | `get_claim_review_summary`, `get_claim_status` |
+| Claimant APPROVED claim | 2026-08-27T21:12:41.537Z | `get_claim_status`, `get_pickup_instructions` |
+| Staff PICKUP_READY claim | 2026-08-27T21:12:42.066Z | `get_claim_review_summary`, `get_claim_status` |
+| Staff COLLECTED claim | 2026-08-27T21:12:42.330Z | `get_claim_status` |
+| Home teardown | 2026-08-27T21:12:42.534Z | `[]` |
 
-## 人工动作边界
+## Manual-Action Boundary
 
-| 人工动作 | 验收方式 | WebMCP 工具 |
+| Manual action | Acceptance method | WebMCP tool |
 | --- | --- | --- |
-| Publish report | 页面 CSRF 表单按钮 | 无 |
-| Submit private evidence | 密码型人工表单 | 无 |
-| Approve claim | Staff 人工按钮 | 无 |
-| Generate pickup pass | Claimant 人工按钮 | 无 |
-| Complete handoff | Staff 凭证人工表单 | 无 |
-| Switch role | Demo 人工按钮 | 无 |
+| Publish report | Page CSRF form button | None |
+| Submit private evidence | Password-type manual form | None |
+| Approve claim | Staff manual button | None |
+| Generate pickup pass | Claimant manual button | None |
+| Complete handoff | Staff manual credential form | None |
+| Switch role | Demo manual button | None |
 
-所有阶段的工具名均严格属于批准的九工具集合；上述人工动作名称在三个 run 的全部 descriptor 中均为零。
+Every tool name observed at every stage belongs strictly to the approved nine-tool set. The names of the manual actions above occur zero times across every descriptor in all three runs.
 
-## 隔离、teardown 与清理
+## Isolation, Teardown, and Cleanup
 
-- 三次运行是三个独立 Node 进程，模块级 phase/executed state 不复用。
-- 每次使用 `mkdtemp` 创建独立数据库目录，并在数据库中验证恰有一个 demo instance。
-- 每次最终进入 Home，连续稳定观察原生 `getTools() = []`。
-- 结果 JSON 只在 `cleanupNativeRun` 成功后输出；cleanup 会关闭浏览器、终止或强制终止 standalone server，并删除受保护的临时目录。
+- The three runs execute in three independent Node processes, with no reuse of module-level phase or executed state.
+- Each run uses `mkdtemp` to create an isolated database directory and verifies that the database contains exactly one demo instance.
+- Each run ends on Home and continuously observes a stable native `getTools() = []` result.
+- The result JSON is emitted only after `cleanupNativeRun` succeeds. Cleanup closes the browser, terminates or force-terminates the standalone server, and removes the protected temporary directory.
 
-## 原始证据与 SHA-256
+## Raw Evidence and SHA-256
 
 | Run | Artifact | SHA-256 |
 | --- | --- | --- |
-| Run 1 | [evidence/native/run-1.json](evidence/native/run-1.json) | `9a63a5cc6d747dd73f206fc847b5932d795d94376c1379e79f77298523a57b27` |
-| Run 2 | [evidence/native/run-2.json](evidence/native/run-2.json) | `6297d6a490cba4870ac7093b78ac551058208ae5b3eff5b6f289864b62d148cc` |
-| Run 3 | [evidence/native/run-3.json](evidence/native/run-3.json) | `3c62c3522802e1a6f103d68520dc37e045a74d4d599f2004f2cf299a62589c5b` |
+| Run 1 | [evidence/native/run-1.json](evidence/native/run-1.json) | `c0d9260091ac200f1989703ce41d800ac186d0cc735cbfe0bd0dd2a2d366fdf3` |
+| Run 2 | [evidence/native/run-2.json](evidence/native/run-2.json) | `7abbd5f4fa6ff66a19ca0d35ec8003e26daf7396a06df97bfd9127824a08bc26` |
+| Run 3 | [evidence/native/run-3.json](evidence/native/run-3.json) | `207cf060bc504f3804b4a8ecce459269373e307e914415cc11c116d86d91a1e9` |
 
-聚合证据：[aggregate.json](evidence/native/aggregate.json)；校验清单：[SHA256SUMS.txt](evidence/native/SHA256SUMS.txt)。证据不记录 Cookie、CSRF、session、candidate handle、report/claim/internal inventory ID 或用户输入正文。
+Aggregated evidence: [aggregate.json](evidence/native/aggregate.json). Verification manifest: [SHA256SUMS.txt](evidence/native/SHA256SUMS.txt). The evidence records no Cookie, CSRF token, session, candidate handle, report/claim/internal inventory ID, or user-entered body text.
 
-## 证据边界与限制
+## Evidence Boundaries and Limitations
 
-- 这是本地正式 standalone + Chrome testing feature 的原生 WebMCP 证据，不等同于公开 HTTPS 部署验收。
-- membership 采用连续三次相同结果的稳定观察，不能捕捉极短暂的中间态；StrictMode、HMR、A→B→A、延迟完成与 AbortSignal 由专项生命周期测试覆盖。
-- Chrome WebMCP 仍是提案 API；本证据固定记录 Chrome 151 的真实签名，不用后续草案反推旧运行时。
+- This is native WebMCP evidence from a local production standalone server using the Chrome testing feature. It is not equivalent to acceptance of a public HTTPS deployment.
+- Tool membership is established through three consecutive identical observations. This cannot capture extremely brief intermediate states; StrictMode, HMR, A→B→A transitions, delayed completion, and `AbortSignal` are covered by targeted lifecycle tests.
+- Chrome WebMCP is still a proposed API. This evidence records the actual Chrome 151 signature and does not reinterpret the historical runtime using a later draft.
