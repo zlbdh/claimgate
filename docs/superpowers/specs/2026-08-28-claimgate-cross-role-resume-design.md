@@ -91,7 +91,9 @@ The recorded path is:
 3. Staff reads the review summary and approves manually.
 4. Staff switches contextually to Claimant and lands on the same claim.
 5. Claimant reads status and pickup instructions, then issues the pass manually.
-6. Claimant switches contextually to Staff and lands on the same claim.
+6. Claimant clicks the visible copy control, switches contextually to Staff,
+   lands on the same claim, and pastes the credential without logging or
+   exposing it.
 7. Staff confirms the handoff manually, reads `COLLECTED`, and returns home.
 
 This keeps the queue tool visible while avoiding invisible URLs after approval
@@ -122,5 +124,8 @@ and pass issuance.
   only one successful mutation.
 - Add a production Playwright flow that uses visible links and buttons for every
   role switch and claim reopen. It must not call `page.goto()` with a claim URL.
+- The Playwright flow clicks the real copy control and pastes from the browser
+  clipboard after switching roles. The test must never read, print, snapshot,
+  or intercept the credential value.
 - Re-run the complete E2E suite, native WebMCP lifecycle tests, secret scans,
   portable verification, and Linux deployment verification.
