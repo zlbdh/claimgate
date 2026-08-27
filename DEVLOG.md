@@ -101,3 +101,11 @@
 - **归档与身份**：validator 按实际 strip 0/1 后路径验证重复、祖先、符号链接与 hardlink；官方 Node 归档的固定 SHA 与 strip1 已实测。root 即使继承 umask 077，提取仍固定 022，最终 Node 与原生 SQLite smoke 必须以服务身份运行。
 - **入口门禁**：配额数据库 busy timeout 收紧为 0，外部写锁冲突立即失败；真实 10 并发 HTTP 验证在 Nginx 截止前返回且不晚消费。来源使用 `$realip_remote_addr`，IPv4-mapped IPv6 统一为 IPv4。vhost 显式关闭继承的 proxy error interception，保持应用 403 与额度 429 分离。
 - **可重复验证**：新增 `test:deployment:linux`，真实构建 Linux/amd64 镜像、解析 local-only Compose、验证 Nginx 1.22 继承行为、umask/非 root native SQLite、Unix socket 0660/group access、stale nonsocket 和 SIGTERM cleanup。Compose 仅用于本地 app/health smoke，生产唯一支持双 systemd unit + Nginx。
+
+### 经验：Node ESM 入口路径与 systemd 符号链接
+
+- **记录**：[2026-08-28 03:35] by Codex — 首次服务器启动暴露了本地直路径测试未覆盖的入口判断差异。
+- **现象**：`claimgate-ingress-gate.service` 启动后约 0.3 秒以状态 0 正常退出，没有创建 Unix socket。
+- **根因**：Node ESM 将 `import.meta.url` 解析为真实 release 路径，而 `process.argv[1]` 保留 `/opt/claimgate/current` 符号链接路径，字符串比较误判脚本不是主入口。
+- **修复**：入口判断先用 `realpathSync()` 规范化启动路径；Linux 部署测试改为通过 `current` 符号链接启动并验证 socket 生命周期。
+- **教训**：凡是生产 unit 通过 release symlink 启动，必须用同一路径形态做真实 Linux 回归，不能只测容器内直路径。

@@ -50,14 +50,15 @@ http {
   it("creates a group-accessible 0660 socket, rejects a stale nonsocket, and cleans on SIGTERM", () => {
     const key = Buffer.alloc(32, 37).toString("base64");
     const script = [
+      "mkdir -p /opt/claimgate", "ln -s /app /opt/claimgate/current",
       "mkdir -p /run/claimgate-ingress-gate /var/lib/claimgate-ingress-gate",
       "chown nobody:www-data /run/claimgate-ingress-gate /var/lib/claimgate-ingress-gate",
       "chmod 750 /run/claimgate-ingress-gate; chmod 700 /var/lib/claimgate-ingress-gate",
       "touch /run/claimgate-ingress-gate/gate.sock", "set +e",
-      `CLAIMGATE_INGRESS_KEY=${key} setpriv --reuid=nobody --regid=www-data --clear-groups node scripts/ingress-gate.mjs`,
+      `CLAIMGATE_INGRESS_KEY=${key} setpriv --reuid=nobody --regid=www-data --clear-groups node /opt/claimgate/current/scripts/ingress-gate.mjs`,
       "stale=$?", "set -e", "test $stale -ne 0", "test ! -e /run/claimgate-ingress-gate/gate.sock",
       "rm -f /var/lib/claimgate-ingress-gate/*",
-      `CLAIMGATE_INGRESS_KEY=${key} setpriv --reuid=nobody --regid=www-data --clear-groups node scripts/ingress-gate.mjs &`,
+      `CLAIMGATE_INGRESS_KEY=${key} setpriv --reuid=nobody --regid=www-data --clear-groups node /opt/claimgate/current/scripts/ingress-gate.mjs &`,
       "pid=$!", "i=0; while [ ! -S /run/claimgate-ingress-gate/gate.sock ]; do i=$((i+1)); test $i -lt 50; sleep .05; done",
       "test \"$(stat -c %a /run/claimgate-ingress-gate/gate.sock)\" = 660",
       "test \"$(stat -c %G /run/claimgate-ingress-gate/gate.sock)\" = www-data",

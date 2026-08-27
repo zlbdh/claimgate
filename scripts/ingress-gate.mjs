@@ -1,4 +1,4 @@
-import { chmodSync, lstatSync, rmSync } from "node:fs";
+import { chmodSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createIngressGateServer } from "./ingress-gate-http.mjs";
@@ -59,7 +59,8 @@ export async function runIngressGate(options = {}) {
 }
 
 const entryPath = process.argv[1];
-if (entryPath && import.meta.url === pathToFileURL(resolve(entryPath)).href) {
+// 2026-08-28 by Codex — systemd 通过 current 符号链接启动，入口判断必须比较真实路径。
+if (entryPath && import.meta.url === pathToFileURL(realpathSync(resolve(entryPath))).href) {
   try {
     const runtime = await runIngressGate();
     runtime.server.on("error", () => {
