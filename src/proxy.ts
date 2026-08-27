@@ -1,23 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-function createContentSecurityPolicy(nonce: string) {
-  const developmentEval =
-    process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
-
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${developmentEval}`,
-    `style-src 'self' 'nonce-${nonce}'`,
-    "img-src 'self' blob: data:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-  ].join("; ");
-}
+import { createContentSecurityPolicy } from "@/server/http/security-headers";
 
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");

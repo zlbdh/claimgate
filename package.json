@@ -16,7 +16,8 @@
     "check:files": "node scripts/check-file-lengths.mjs",
     "check:evidence-client": "tsx scripts/check-evidence-client.ts",
     "check:pickup-client": "tsx scripts/check-pickup-pass-client.ts",
-    "verify": "npm run check:files && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:evidence-client && npm run check:pickup-client"
+    "check:secret-surfaces": "tsx scripts/check-secret-surfaces.ts",
+    "verify": "npm run check:files && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:evidence-client && npm run check:pickup-client && npm run check:secret-surfaces"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertPickupSafeWebMcp } from "./pickup-webmcp-gate";
 
 function source(path: string): string {
   return readFileSync(resolve(path), "utf8");
@@ -29,7 +30,11 @@ const panel = source("src/components/pickup-pass-panel.tsx");
 const handoff = source("src/components/staff-handoff-form.tsx");
 const claimantPage = source("src/app/claimant/claims/[claimId]/page.tsx");
 const staffPage = source("src/app/staff/claims/[claimId]/page.tsx");
-const registry = source("src/features/webmcp/tool-registry.ts");
+const toolNames = source("src/features/webmcp/tool-names.ts");
+const webMcpSource = files(resolve("src/features/webmcp"))
+  .filter((path) => path.endsWith(".ts") && !path.endsWith(".test.ts"))
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n");
 
 for (const [pattern, label] of [
   ['"use client"', "Client Component boundary"],
@@ -70,7 +75,7 @@ for (const page of [claimantPage, staffPage]) {
   forbid(page, /pickup_pass_|transientToken|\bdigest\b|\bsalt\b/i, "server page secret field");
   forbid(page, /token=\{[^}]*(?:pickup|credential)/i, "server token prop");
 }
-requireText(registry, /scope\.page === "CLAIM"[\s\S]*return \[\]/, "empty Claim WebMCP set");
+assertPickupSafeWebMcp(toolNames, webMcpSource);
 
 const clientChunks = files(resolve(".next/static/chunks"))
   .filter((path) => path.endsWith(".js"))
