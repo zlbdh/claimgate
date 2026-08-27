@@ -219,6 +219,20 @@ describe("Claimant report workspace components", () => {
     await waitFor(() => expect(writer).toHaveBeenCalledTimes(2));
     expect(keys[1]).not.toBe(keys[0]);
   });
+
+  it.each(["create", "update"])("rejects invalid %s intent before writer", async (kind) => {
+    const writer = vi.fn<typeof performSameOriginWrite>();
+    if (kind === "create") {
+      render(<ReportCreateForm csrfToken="csrf" writer={writer} />);
+      fillCreateInputs();
+    } else {
+      render(<ReportUpdateForm csrfToken="csrf" report={reportFixture()} writer={writer} />);
+    }
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "!!!" } });
+    fireEvent.submit(screen.getByRole("form"));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(writer).not.toHaveBeenCalled();
+  });
 });
 
 function fillCreateInputs() {

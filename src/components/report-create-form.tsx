@@ -44,7 +44,7 @@ export function ReportCreateForm({
         publicTags: JSON.stringify(tags),
         publicDescription: String(form.get("publicDescription") ?? ""),
       });
-      const body = attachReportIntentKey(businessBody, intentRef);
+      const body = attachReportIntentKey(businessBody, { kind: "create" }, intentRef);
       const response = await writer({ path: "/api/reports", csrfToken, body });
       const result = await response.json() as { nextPath?: unknown };
       if (!response.ok || typeof result.nextPath !== "string" || !result.nextPath.startsWith("/claimant/reports/")) {

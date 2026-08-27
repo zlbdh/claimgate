@@ -114,6 +114,15 @@ describe("report client lost-response retries", () => {
 
     fireEvent.submit(form);
     expect(await screen.findByRole("alert")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "  ＥＡＲＢＵＤＳ  " } });
+    fireEvent.change(screen.getByLabelText("Area"), { target: { value: "  LIBRARY  " } });
+    fireEvent.change(screen.getByLabelText("Color"), { target: { value: " BLACK " } });
+    fireEvent.change(screen.getByLabelText("Public descriptors"), {
+      target: { value: "ＷＩＲＥＬＥＳＳ, charging–case" },
+    });
+    fireEvent.change(screen.getByLabelText("Public description"), {
+      target: { value: "  Black   earbud case.  " },
+    });
     fireEvent.submit(form);
     await waitFor(() => expect(keys).toHaveLength(2));
 
@@ -162,6 +171,13 @@ describe("report client lost-response retries", () => {
 
     fireEvent.submit(form);
     expect(await screen.findByRole("alert")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: " ＥＡＲＢＵＤＳ " } });
+    fireEvent.change(screen.getByLabelText("Area"), { target: { value: " LIBRARY " } });
+    fireEvent.change(screen.getByLabelText("Color"), { target: { value: " BLACK " } });
+    fireEvent.change(screen.getByLabelText("Public descriptors"), { target: { value: "ＷＩＲＥＬＥＳＳ" } });
+    fireEvent.change(screen.getByLabelText("Public description"), {
+      target: { value: " Black   earbud case. " },
+    });
     fireEvent.submit(form);
     await waitFor(() => expect(keys).toHaveLength(2));
 

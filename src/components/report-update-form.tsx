@@ -62,7 +62,11 @@ export function ReportUpdateForm({
         publicTags: JSON.stringify(tags),
         publicDescription: String(form.get("publicDescription") ?? ""),
       });
-      const body = attachReportIntentKey(businessBody, intentRef);
+      const body = attachReportIntentKey(
+        businessBody,
+        { kind: "update", reportId: report.reportId },
+        intentRef,
+      );
       const response = await writer({
         path: `/api/reports/${report.reportId}`,
         csrfToken,
