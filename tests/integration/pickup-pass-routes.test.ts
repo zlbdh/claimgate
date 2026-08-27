@@ -90,6 +90,21 @@ function request(path: string, session: string, csrf: string, body: URLSearchPar
   });
 }
 
+function writeSnapshot() {
+  const database = testDatabase!.database;
+  return {
+    instance: database.prepare("SELECT * FROM demo_instances ORDER BY id").all(),
+    item: database.prepare("SELECT * FROM found_items ORDER BY id").all(),
+    report: database.prepare("SELECT * FROM lost_reports ORDER BY id").all(),
+    claim: database.prepare("SELECT * FROM claims ORDER BY id").all(),
+    events: database.prepare("SELECT claim_id, event_type, result FROM claim_events").all(),
+    idempotency: database.prepare("SELECT action, result_json FROM idempotency_records ORDER BY action").all(),
+    nonces: database.prepare("SELECT action, consumed_at_ms FROM consumed_action_nonces ORDER BY action").all(),
+    quota: database.prepare(`SELECT action, window_start_ms, request_count
+      FROM rate_limit_buckets ORDER BY action`).all(),
+  };
+}
+
 describe("pickup issue, reissue and handoff physical routes", () => {
   it("returns the raw token only once with sensitive response headers", async () => {
     const value = setup();
@@ -198,5 +213,42 @@ describe("pickup issue, reissue and handoff physical routes", () => {
       .toEqual({ count: 0 });
     expect(testDatabase!.database.prepare("SELECT COUNT(*) AS count FROM idempotency_records").get())
       .toEqual({ count: 0 });
+  });
+
+  it("rolls the physical issue route back when specialized idempotency is ignored", async () => {
+    const value = setup();
+    const before = writeSnapshot();
+    testDatabase!.database.exec(`CREATE TRIGGER ignore_route_pickup_issue_idempotency
+      BEFORE INSERT ON idempotency_records WHEN NEW.action = 'pickup_issue'
+      BEGIN SELECT RAISE(IGNORE); END`);
+    const path = "/api/claims/claim-route-pickup/pickup-pass/issue";
+    const response = await value.issue(request(
+      path, value.claimant.token, csrfToken(value, "claimant", "pickup_issue", path),
+      new URLSearchParams({ expectedClaimVersion: "5", idempotencyKey: "route-ignore-issue" }),
+    ));
+    expect(response.status).toBe(500);
+    expect(writeSnapshot()).toEqual(before);
+  });
+
+  it("rolls the physical handoff route back when generic idempotency is ignored", async () => {
+    const value = setup();
+    const issuePath = "/api/claims/claim-route-pickup/pickup-pass/issue";
+    const issue = await value.issue(request(
+      issuePath, value.claimant.token, csrfToken(value, "claimant", "pickup_issue", issuePath),
+      new URLSearchParams({ expectedClaimVersion: "5", idempotencyKey: "route-prime-handoff" }),
+    ));
+    const token = ((await issue.json()) as { token: string }).token;
+    const before = writeSnapshot();
+    testDatabase!.database.exec(`CREATE TRIGGER ignore_route_handoff_idempotency
+      BEFORE INSERT ON idempotency_records WHEN NEW.action = 'handoff'
+      BEGIN SELECT RAISE(IGNORE); END`);
+    const path = "/api/staff/claims/claim-route-pickup/handoff";
+    const response = await value.handoff(request(
+      path, value.staff.token, csrfToken(value, "staff", "handoff", path),
+      new URLSearchParams({ token, expectedClaimVersion: "6", expectedItemVersion: "4",
+        expectedReportVersion: "3", expectedGeneration: "1", idempotencyKey: "route-ignore-handoff" }),
+    ));
+    expect(response.status).toBe(500);
+    expect(writeSnapshot()).toEqual(before);
   });
 });

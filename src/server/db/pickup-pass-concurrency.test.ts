@@ -19,7 +19,7 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-type Operation = { kind: "issue" | "handoff"; key: string; token?: string };
+type Operation = { kind: "issue" | "reissue" | "handoff"; key: string; token?: string };
 type WorkerResult = { ok: true; result: Record<string, unknown> } | { ok: false; code: string };
 
 const urls = {
@@ -57,9 +57,11 @@ const WORKER = `
     const op = config.operation;
     const raw = op.kind === "issue"
       ? service.issue(claimant, "claim-concurrent", { expectedClaimVersion: 5, idempotencyKey: op.key })
-      : service.handoff(staff, "claim-concurrent", { token: op.token, expectedClaimVersion: 6,
-          expectedItemVersion: 4, expectedReportVersion: 3, expectedGeneration: 1, idempotencyKey: op.key });
-    const result = op.kind === "issue"
+      : op.kind === "reissue"
+        ? service.reissue(claimant, "claim-concurrent", { expectedClaimVersion: 6, idempotencyKey: op.key })
+        : service.handoff(staff, "claim-concurrent", { token: op.token, expectedClaimVersion: 6,
+            expectedItemVersion: 4, expectedReportVersion: 3, expectedGeneration: 1, idempotencyKey: op.key });
+    const result = op.kind !== "handoff"
       ? { issuance: raw.issuance, hasToken: Object.hasOwn(raw, "token") }
       : raw;
     process.stdout.write("RESULT:" + JSON.stringify({ ok: true, result }) + "\\n");
@@ -175,6 +177,50 @@ describe("real overlapping pickup writers", () => {
     ]);
     expect(results.filter(({ ok }) => ok)).toHaveLength(1);
     expect(results.filter(({ ok }) => !ok)).toEqual([expect.objectContaining({ code: "STATE_CHANGED" })]);
+  }, 30_000);
+
+  it("serializes same-key and different-key reissue across real connections", async () => {
+    let value = setup();
+    let issued = value.service.issue(value.claimant, "claim-concurrent", {
+      expectedClaimVersion: 5, idempotencyKey: "pickup-before-reissue-same",
+    });
+    if (issued.issuance !== "ISSUED") throw new Error("expected initial token");
+    const oldToken = issued.token;
+    let results = await race([
+      { kind: "reissue", key: "reissue-concurrent-same" },
+      { kind: "reissue", key: "reissue-concurrent-same" },
+    ]);
+    expect(results.every(({ ok }) => ok)).toBe(true);
+    expect(results.map((entry) => entry.ok && entry.result)).toEqual(expect.arrayContaining([
+      { issuance: "ISSUED", hasToken: true },
+      { issuance: "ALREADY_ISSUED", hasToken: false },
+    ]));
+    expect(testDatabase!.database.prepare(`SELECT pass_generation AS generation FROM claims
+      WHERE id = 'claim-concurrent'`).get()).toEqual({ generation: 2 });
+    expect(testDatabase!.database.prepare(`SELECT COUNT(*) AS count FROM claim_events
+      WHERE event_type = 'PASS_REISSUED'`).get()).toEqual({ count: 1 });
+    const staff = { ...value.claimant, actorId: "staff-demo" as const };
+    expect(() => value.service.handoff(staff, "claim-concurrent", {
+      token: oldToken, expectedClaimVersion: 7, expectedItemVersion: 4,
+      expectedReportVersion: 3, expectedGeneration: 2, idempotencyKey: "old-token-after-reissue",
+    })).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
+    testDatabase!.close(); testDatabase = undefined;
+
+    value = setup();
+    issued = value.service.issue(value.claimant, "claim-concurrent", {
+      expectedClaimVersion: 5, idempotencyKey: "pickup-before-reissue-different",
+    });
+    if (issued.issuance !== "ISSUED") throw new Error("expected initial token");
+    results = await race([
+      { kind: "reissue", key: "reissue-concurrent-a" },
+      { kind: "reissue", key: "reissue-concurrent-b" },
+    ]);
+    expect(results.filter(({ ok }) => ok)).toHaveLength(1);
+    expect(results.filter(({ ok }) => !ok)).toEqual([expect.objectContaining({ code: "STATE_CHANGED" })]);
+    expect(testDatabase!.database.prepare(`SELECT pass_generation AS generation FROM claims
+      WHERE id = 'claim-concurrent'`).get()).toEqual({ generation: 2 });
+    expect(testDatabase!.database.prepare(`SELECT COUNT(*) AS count FROM claim_events
+      WHERE event_type = 'PASS_REISSUED'`).get()).toEqual({ count: 1 });
   }, 30_000);
 
   it("completes one handoff for same-key and different-key tabs", async () => {

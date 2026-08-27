@@ -34,6 +34,17 @@ describe("strict pickup client response schemas", () => {
   it("accepts exact ISSUED and ALREADY_ISSUED acknowledgements", () => {
     expect(parsePickupIssuanceClientResponse(ISSUED, ISSUE_EXPECTED)).toEqual(ISSUED);
     expect(parsePickupIssuanceClientResponse(ALREADY, ISSUE_EXPECTED)).toEqual(ALREADY);
+    expect(parsePickupIssuanceClientResponse({ ...ISSUED, expiresAtMs: NOW + 600_000 }, ISSUE_EXPECTED))
+      .toMatchObject({ expiresAtMs: NOW + 600_000 });
+  });
+
+  it.each([
+    { value: { ...ISSUED, expiresAtMs: NOW + 600_001 }, expected: ISSUE_EXPECTED },
+    { value: { ...ISSUED, expiresAtMs: NOW + 365 * 24 * 60 * 60_000 }, expected: ISSUE_EXPECTED },
+    { value: { ...ISSUED, expiresAtMs: NOW + 60_000 }, expected: { ...ISSUE_EXPECTED, now: 1.5 } },
+    { value: { ...ISSUED, expiresAtMs: NOW + 60_000 }, expected: { ...ISSUE_EXPECTED, now: Number.NaN } },
+  ])("rejects issuance outside a safe ten-minute clock boundary %#", ({ value, expected }) => {
+    expect(() => parsePickupIssuanceClientResponse(value, expected)).toThrow();
   });
 
   it.each([

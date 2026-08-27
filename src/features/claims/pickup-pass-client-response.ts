@@ -65,8 +65,11 @@ function canonicalToken(value: unknown): value is string {
 }
 
 function validFutureDate(value: unknown, now: number): value is number {
-  return Number.isSafeInteger(value)
+  return Number.isSafeInteger(now)
+    && now >= 0
+    && Number.isSafeInteger(value)
     && Number(value) > now
+    && Number(value) <= now + 600_000
     && Number.isFinite(new Date(Number(value)).getTime());
 }
 

@@ -247,4 +247,29 @@ describe("manual evidence and Staff route boundaries", () => {
     expect((await value.evidence(sent)).status).toBe(403);
     expect(sent.bodyUsed).toBe(false);
   });
+
+  it("rolls the physical evidence route nonce and quota back when its event is ignored", async () => {
+    const value = setup();
+    const database = testDatabase!.database;
+    const snapshot = () => ({
+      instance: database.prepare("SELECT * FROM demo_instances ORDER BY id").all(),
+      item: database.prepare("SELECT * FROM found_items ORDER BY id").all(),
+      report: database.prepare("SELECT * FROM lost_reports ORDER BY id").all(),
+      claim: database.prepare("SELECT * FROM claims ORDER BY id").all(),
+      events: database.prepare("SELECT * FROM claim_events").all(),
+      idempotency: database.prepare("SELECT * FROM idempotency_records").all(),
+      nonces: database.prepare("SELECT * FROM consumed_action_nonces").all(),
+      quota: database.prepare("SELECT * FROM rate_limit_buckets").all(),
+    });
+    const before = snapshot();
+    database.exec(`CREATE TRIGGER ignore_route_evidence_event BEFORE INSERT ON claim_events
+      WHEN NEW.event_type = 'EVIDENCE_INSUFFICIENT' BEGIN SELECT RAISE(IGNORE); END`);
+    const path = `/api/claims/${value.claim.claimId}/evidence`;
+    const response = await value.evidence(request(
+      path, value.claimant.token, token(value, "claimant", "evidence_submit", path),
+      "expectedVersion=1&idempotencyKey=route-ignore-evidence",
+    ));
+    expect(response.status).toBe(500);
+    expect(snapshot()).toEqual(before);
+  });
 });

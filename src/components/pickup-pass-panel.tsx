@@ -44,7 +44,18 @@ export function PickupPassPanel(props: {
   const [revealed, setRevealed] = useState(false);
   const [message, setMessage] = useState<UiMessage>();
   const [pending, setPending] = useState<{ epoch: number; identity: string }>();
+  const [viewEpoch, setViewEpoch] = useState(0);
+  const [stateIdentity, setStateIdentity] = useState(identity);
   const [keys] = useState(() => ({ issue: crypto.randomUUID(), reissue: crypto.randomUUID() }));
+
+  if (stateIdentity !== identity) {
+    setStateIdentity(identity);
+    setViewEpoch(viewEpoch + 1);
+    setCredential(undefined);
+    setRevealed(false);
+    setMessage(undefined);
+    setPending(undefined);
+  }
 
   const invalidate = useCallback((updateState: boolean) => {
     epochRef.current += 1;
@@ -56,6 +67,7 @@ export function PickupPassPanel(props: {
     credentialRef.current = undefined;
     clearCanvas(canvasRef.current);
     if (updateState && mountedRef.current) {
+      setViewEpoch(epochRef.current);
       setRevealed(false);
       setCredential(undefined);
       setMessage(undefined);
@@ -213,9 +225,11 @@ export function PickupPassPanel(props: {
     }
   }
 
-  const activeCredential = credential?.identity === identity ? credential : undefined;
-  const activeMessage = message?.identity === identity ? message.text : undefined;
-  const isPending = pending?.identity === identity;
+  const activeCredential = credential?.identity === identity && credential.epoch === viewEpoch
+    ? credential : undefined;
+  const activeMessage = message?.identity === identity && message.epoch === viewEpoch
+    ? message.text : undefined;
+  const isPending = pending?.identity === identity && pending.epoch === viewEpoch;
   const safeExpiry = activeCredential?.expiresAtMs ?? props.expiresAtMs;
   const safeGeneration = activeCredential?.generation ?? props.generation;
   return (

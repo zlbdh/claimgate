@@ -135,6 +135,49 @@ describe("pickup request and QR generation gates", () => {
     expect(container.textContent).not.toContain(TOKEN_A);
   });
 
+  it("does not resurrect a revealed credential after identity A to B to A", async () => {
+    const clipboard = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true, value: { writeText: clipboard },
+    });
+    const props = {
+      claimId: "claim-ui", status: "APPROVED" as const, claimVersion: 5,
+      issueCsrfToken: "csrf", fetcher: vi.fn(async () => issuance()) as typeof fetch,
+    };
+    const { container, rerender } = render(<PickupPassPanel {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /generate pickup pass/i }));
+    await waitFor(() => expect(drawImage).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /reveal credential/i }));
+    fireEvent.click(screen.getByRole("button", { name: /copy credential/i }));
+    expect(clipboard).toHaveBeenCalledWith(TOKEN_A);
+    rerender(<PickupPassPanel {...props} claimId="claim-other" />);
+    rerender(<PickupPassPanel {...props} />);
+    expect(container.textContent).not.toContain(TOKEN_A);
+    expect(container.querySelector("canvas")?.width ?? 0).toBe(0);
+    expect(screen.queryByRole("button", { name: /copy credential/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/credential ready/i)).not.toBeInTheDocument();
+    expect(clipboard).toHaveBeenCalledOnce();
+  });
+
+  it("does not resurrect pending or message state after identity A to B to A", () => {
+    const pending = deferred<Response>();
+    const fetcher = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      void input; void init; return pending.promise;
+    });
+    const props = {
+      claimId: "claim-ui", status: "APPROVED" as const, claimVersion: 5,
+      issueCsrfToken: "csrf", fetcher: fetcher as typeof fetch,
+    };
+    const { rerender } = render(<PickupPassPanel {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /generate pickup pass/i }));
+    expect(screen.getByRole("button", { name: /generate pickup pass/i })).toBeDisabled();
+    expect(screen.getByText(/generating one-time credential/i)).toBeVisible();
+    rerender(<PickupPassPanel {...props} claimId="claim-other" />);
+    rerender(<PickupPassPanel {...props} />);
+    expect(screen.getByRole("button", { name: /generate pickup pass/i })).toBeEnabled();
+    expect(screen.queryByText(/generating one-time credential/i)).not.toBeInTheDocument();
+  });
+
   it("renders on a detached canvas and discards a delayed renderer after clear", async () => {
     const renderer = deferred<void>();
     vi.mocked(QRCode.toCanvas).mockImplementationOnce(() => renderer.promise as never);
@@ -170,14 +213,17 @@ describe("pickup request and QR generation gates", () => {
     } finally { window.removeEventListener("unhandledrejection", unhandled); }
   });
 
-  it("gives malformed 2xx issuance zero credential or QR side effects", async () => {
-    const fetcher = vi.fn(async () => issuance(TOKEN_A, { extra: true }));
-    const { container } = render(panel(fetcher as typeof fetch));
-    fireEvent.click(screen.getByRole("button", { name: /generate pickup pass/i }));
-    await screen.findByText(/invalid or unavailable/i);
-    expect(container.textContent).not.toContain(TOKEN_A);
-    expect(container.querySelector("canvas")?.width ?? 0).toBe(0);
-    expect(QRCode.toCanvas).not.toHaveBeenCalled();
+  it("gives overlong-expiry 2xx issuance zero credential or QR side effects", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const fetcher = vi.fn(async () => issuance(TOKEN_A, { expiresAtMs: 1_600_001 }));
+      const { container } = render(panel(fetcher as typeof fetch));
+      fireEvent.click(screen.getByRole("button", { name: /generate pickup pass/i }));
+      await screen.findByText(/invalid or unavailable/i);
+      expect(container.textContent).not.toContain(TOKEN_A);
+      expect(container.querySelector("canvas")?.width ?? 0).toBe(0);
+      expect(QRCode.toCanvas).not.toHaveBeenCalled();
+    } finally { now.mockRestore(); }
   });
 
   it("clears token and canvas on real timer expiry", async () => {
