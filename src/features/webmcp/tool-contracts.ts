@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { validateCreateReportCommand } from "@/features/reports/report-schema";
 import {
+  CANDIDATE_HANDLE_MAX_LENGTH,
+  CANDIDATE_HANDLE_PATTERN_SOURCE,
+  candidateHandleSchema,
+} from "@/features/matching/candidate-handle-syntax";
+import { candidateSearchSchema } from "@/features/reports/candidate-response-schema";
+import {
   TOOL_ERROR_CODES,
   TOOL_ERROR_MESSAGES,
   canonicalToolFailure,
@@ -19,10 +25,6 @@ export type ClaimGateToolName = (typeof CLAIMGATE_TOOL_NAMES)[number];
 
 const publicText = z.string().min(1).max(64);
 const idempotencyKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._~-]{15,127}$/);
-const candidateHandle = z.string().max(96).regex(
-  /^cgch1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.[A-Za-z0-9_-]{43}$/,
-);
-
 const createInput = z.strictObject({
   category: publicText,
   timeWindow: z.strictObject({
@@ -45,7 +47,7 @@ const findInput = z.strictObject({
 });
 const stageInput = z.strictObject({
   reportId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/),
-  candidateHandle,
+  candidateHandle: candidateHandleSchema,
   expectedVersion: z.number().int().safe().positive(),
   idempotencyKey,
 });
@@ -117,12 +119,6 @@ const reportSummarySchema = z.strictObject({
   status: z.enum(["DRAFT", "PUBLISHED", "RESOLVED", "ARCHIVED"]),
   version: z.number().int().safe().positive(),
 });
-const candidateSchema = z.strictObject({
-  candidateHandle, category: publicText, timeBand: publicText, area: publicText, color: publicText,
-  confidence: z.enum(["strong", "possible", "weak"]),
-  reasons: z.array(z.string().min(1).max(160)).max(8),
-  expiresAt: z.number().int().safe().positive(),
-});
 const outputSchemas = {
   create_lost_report_draft: z.union([
     z.strictObject({ ok: z.literal(true), data: z.strictObject({
@@ -136,10 +132,7 @@ const outputSchemas = {
     z.strictObject({ ok: z.literal(false), error: errorSchema }),
   ]),
   find_candidate_matches: z.union([
-    z.strictObject({ ok: z.literal(true), data: z.strictObject({
-      reportVersion: z.number().int().safe().positive(), candidates: z.array(candidateSchema).max(3),
-      message: z.string().min(1).max(256),
-    }), nextPath: z.never().optional() }),
+    z.strictObject({ ok: z.literal(true), data: candidateSearchSchema, nextPath: z.never().optional() }),
     z.strictObject({ ok: z.literal(false), error: errorSchema }),
   ]),
   stage_claim_candidate: z.union([
@@ -192,7 +185,11 @@ export const TOOL_INPUT_SCHEMAS = Object.freeze({
     required: ["reportId", "candidateHandle", "expectedVersion", "idempotencyKey"],
     properties: {
       reportId: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$" },
-      candidateHandle: { type: "string", maxLength: 96, pattern: "^cgch1\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.[A-Za-z0-9_-]{43}$" },
+      candidateHandle: {
+        type: "string",
+        maxLength: CANDIDATE_HANDLE_MAX_LENGTH,
+        pattern: CANDIDATE_HANDLE_PATTERN_SOURCE,
+      },
       expectedVersion: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
       idempotencyKey: { type: "string", minLength: 16, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9._~-]{15,127}$" },
     },

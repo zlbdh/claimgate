@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { ClaimGateToolExecutor, ToolResult } from "./tool-contracts";
+import type { BrowserCandidateDto } from "@/features/reports/report-types";
+import { candidateSearchSchema } from "@/features/reports/candidate-response-schema";
 import {
   TOOL_ERROR_CODES,
   canonicalToolFailure,
@@ -14,14 +16,6 @@ const publicReport = z.strictObject({
   publicDescription: z.string().min(1).max(256), status: reportStatus,
   version: z.number().int().safe().positive(),
 });
-const candidate = z.strictObject({
-  candidateHandle: z.string().regex(/^cgch1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.[A-Za-z0-9_-]{43}$/),
-  category: z.string().min(1).max(64), timeBand: z.string().min(1).max(64),
-  area: z.string().min(1).max(64), color: z.string().min(1).max(64),
-  confidence: z.enum(["strong", "possible", "weak"]),
-  reasons: z.array(z.string().min(1).max(160)).max(8),
-  expiresAt: z.number().int().safe().positive(),
-});
 const knownErrorCode = z.enum(TOOL_ERROR_CODES);
 const errorResponse = z.strictObject({
   error: z.strictObject({ code: knownErrorCode, message: z.string().min(1).max(256) }),
@@ -34,7 +28,7 @@ type ExecutorOptions = Readonly<{
   stageCsrfToken?: string;
   defer?: (callback: () => void) => void;
   navigate?: (path: string) => void;
-  publishCandidates?: (reportId: string, reportVersion: number, candidates: readonly z.infer<typeof candidate>[]) => void;
+  publishCandidates?: (reportId: string, reportVersion: number, candidates: readonly BrowserCandidateDto[]) => void;
   isCurrent?: () => boolean;
 }>;
 
@@ -156,11 +150,7 @@ export function createToolExecutor(options: ExecutorOptions = {}): ClaimGateTool
           baseInit("GET"),
         );
         if (!response.ok) return failure(response);
-        const parsed = z.strictObject({
-          reportVersion: z.number().int().safe().positive(),
-          candidates: z.array(candidate).max(3),
-          message: z.string().min(1).max(256),
-        }).safeParse(await readJson(response));
+        const parsed = candidateSearchSchema.safeParse(await readJson(response));
         if (!parsed.success) return INTERNAL_ERROR;
         const result = { ok: true as const, data: parsed.data };
         schedule(() => publishCandidates(input.reportId, parsed.data.reportVersion, parsed.data.candidates));

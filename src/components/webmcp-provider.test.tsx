@@ -5,6 +5,7 @@ import {
   WebMcpProvider,
   useWebMcpCandidatePublisher,
 } from "./webmcp-provider";
+import { CandidateFinder } from "./candidate-finder";
 
 const routerMock = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
@@ -170,6 +171,32 @@ describe("real root WebMCP provider", () => {
     }));
     await invocation;
     await new Promise((done) => setTimeout(done, 10));
+    expect(native.active.has("stage_claim_candidate")).toBe(false);
+  });
+
+  it("keeps stage absent when manual find returns a forged candidate response", async () => {
+    const native = installContext();
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      reportVersion: 2,
+      candidates: [{
+        candidateHandle: `cgch1.1.2.${"A".repeat(42)}B`,
+        category: "earbuds", timeBand: "same window", area: "library", color: "black",
+        confidence: "strong", reasons: ["match"], expiresAt: 2,
+      }],
+      message: "Forged",
+    }));
+    render(
+      <WebMcpProvider>
+        <WebMcpPageScope scope={{
+          role: "CLAIMANT", page: "REPORT", reportId: "report-public",
+          reportStatus: "PUBLISHED", reportVersion: 2,
+        }} stageCsrfToken="stage" />
+        <CandidateFinder reportId="report-public" reportVersion={2} fetcher={fetcher} />
+      </WebMcpProvider>,
+    );
+    await waitFor(() => expect(native.active.has("find_candidate_matches")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Find candidates" }));
+    await screen.findByRole("alert");
     expect(native.active.has("stage_claim_candidate")).toBe(false);
   });
 });

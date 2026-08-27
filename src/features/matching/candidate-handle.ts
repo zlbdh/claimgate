@@ -1,11 +1,13 @@
 import { Buffer } from "node:buffer";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { DomainError } from "@/shared/domain-error";
+import {
+  CANDIDATE_HANDLE_MAX_LIFETIME_SECONDS,
+  CANDIDATE_HANDLE_VERSION,
+  parseCandidateHandleSyntax,
+} from "./candidate-handle-syntax";
 
-const HANDLE_VERSION = "cgch1";
 const HANDLE_PURPOSE = "ClaimGate/candidate-handle/cgch1";
-const MAX_HANDLE_LIFETIME_SECONDS = 900;
-const MAX_HANDLE_LENGTH = 96;
 
 type CandidateBinding = Readonly<{
   key: Buffer;
@@ -54,7 +56,7 @@ function lengthPrefixed(fields: readonly string[]): Buffer {
 function computeMac(input: CandidateBinding, inventoryItemId: string, iat: number, exp: number): Buffer {
   return createHmac("sha256", input.key).update(lengthPrefixed([
     HANDLE_PURPOSE,
-    HANDLE_VERSION,
+    CANDIDATE_HANDLE_VERSION,
     input.demoInstanceId,
     input.reportId,
     inventoryItemId,
@@ -65,31 +67,18 @@ function computeMac(input: CandidateBinding, inventoryItemId: string, iat: numbe
   ])).digest();
 }
 
-function parseCanonicalInteger(value: string): number | undefined {
-  if (!/^(0|[1-9][0-9]*)$/.test(value)) return undefined;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : undefined;
-}
-
 function parseHandle(handle: string): CandidateHandlePreflight {
-  if (typeof handle !== "string" || handle.length > MAX_HANDLE_LENGTH) {
+  const syntax = parseCandidateHandleSyntax(handle);
+  if (!syntax) throw new DomainError("VALIDATION_FAILED");
+  const mac = Buffer.from(syntax.macText, "base64url");
+  if (mac.length !== 32 || mac.toString("base64url") !== syntax.macText) {
     throw new DomainError("VALIDATION_FAILED");
   }
-  const parts = handle.split(".");
-  const iat = parts[1] === undefined ? undefined : parseCanonicalInteger(parts[1]);
-  const exp = parts[2] === undefined ? undefined : parseCanonicalInteger(parts[2]);
-  if (
-    parts.length !== 4
-    || parts[0] !== HANDLE_VERSION
-    || iat === undefined
-    || exp === undefined
-    || !/^[A-Za-z0-9_-]{43}$/.test(parts[3] ?? "")
-  ) throw new DomainError("VALIDATION_FAILED");
-  const mac = Buffer.from(parts[3]!, "base64url");
-  if (mac.length !== 32 || mac.toString("base64url") !== parts[3]) {
-    throw new DomainError("VALIDATION_FAILED");
-  }
-  return Object.freeze({ issuedAtSeconds: iat, expiresAtSeconds: exp, mac });
+  return Object.freeze({
+    issuedAtSeconds: syntax.issuedAtSeconds,
+    expiresAtSeconds: syntax.expiresAtSeconds,
+    mac,
+  });
 }
 
 export function mintCandidateHandles(input: CandidateBinding & { nowMs: number }): string[] {
@@ -99,13 +88,13 @@ export function mintCandidateHandles(input: CandidateBinding & { nowMs: number }
   }
   const issuedAtSeconds = Math.floor(input.nowMs / 1_000);
   const expiresAtSeconds = Math.min(
-    issuedAtSeconds + MAX_HANDLE_LIFETIME_SECONDS,
+    issuedAtSeconds + CANDIDATE_HANDLE_MAX_LIFETIME_SECONDS,
     Math.floor(input.ceilingMs / 1_000),
   );
   if (expiresAtSeconds <= issuedAtSeconds) throw new DomainError("STATE_CHANGED");
   return input.inventoryItemIds.map((inventoryItemId) => {
     const mac = computeMac(input, inventoryItemId, issuedAtSeconds, expiresAtSeconds).toString("base64url");
-    return `${HANDLE_VERSION}.${issuedAtSeconds}.${expiresAtSeconds}.${mac}`;
+    return `${CANDIDATE_HANDLE_VERSION}.${issuedAtSeconds}.${expiresAtSeconds}.${mac}`;
   });
 }
 
@@ -120,7 +109,7 @@ export function preflightCandidateHandle(input: {
   const nowSeconds = Math.floor(input.nowMs / 1_000);
   if (
     parsed.expiresAtSeconds <= parsed.issuedAtSeconds
-    || parsed.expiresAtSeconds - parsed.issuedAtSeconds > MAX_HANDLE_LIFETIME_SECONDS
+    || parsed.expiresAtSeconds - parsed.issuedAtSeconds > CANDIDATE_HANDLE_MAX_LIFETIME_SECONDS
     || parsed.issuedAtSeconds > nowSeconds
   ) throw new DomainError("VALIDATION_FAILED");
   if (nowSeconds >= parsed.expiresAtSeconds) throw new DomainError("STATE_CHANGED");

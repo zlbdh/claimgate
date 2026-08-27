@@ -9,10 +9,11 @@ function deferredResponse() {
 }
 
 function result(category: string, reportVersion: number) {
+  const mac = category === "earbuds" ? "A".repeat(43) : `${"B".repeat(42)}A`;
   return Response.json({
     reportVersion,
     candidates: [{
-      candidateHandle: `cgch1.1.2.${(category === "earbuds" ? "A" : "B").repeat(43)}`,
+      candidateHandle: `cgch1.1.2.${mac}`,
       category, timeBand: "same window", area: "library", color: "black",
       confidence: "strong", reasons: ["category match"], expiresAt: 2,
     }],
@@ -73,5 +74,23 @@ describe("CandidateFinder request generation", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("wallet result");
+  });
+
+  it.each([
+    [{ reportVersion: 2, candidates: [{
+      candidateHandle: `cgch1.1.2.${"A".repeat(42)}B`, category: "earbuds",
+      timeBand: "same window", area: "library", color: "black", confidence: "strong",
+      reasons: ["match"], expiresAt: 2,
+    }], message: "Forged" }, "noncanonical handle"],
+    [{ reportVersion: 2, candidates: [], message: "ok", extra: true }, "extra response field"],
+    [{ reportVersion: Number.MAX_SAFE_INTEGER + 1, candidates: [], message: "unsafe" }, "unsafe version"],
+    [{ reportVersion: 2, candidates: [], message: "x".repeat(257) }, "oversized message"],
+  ])("shows a bounded error without candidate state for %s (%s)", async (payload, _label) => {
+    void _label;
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json(payload));
+    render(<CandidateFinder reportId="report-public" reportVersion={2} fetcher={fetcher} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find candidates" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });
 });

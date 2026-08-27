@@ -1,26 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
 import type { BrowserCandidateDto } from "@/features/reports/report-types";
+import { candidateSearchSchema } from "@/features/reports/candidate-response-schema";
 import { CandidateCard } from "./candidate-card";
 import { useWebMcpCandidatePublisher } from "./webmcp-provider";
-
-const candidateSchema = z.strictObject({
-  candidateHandle: z.string().regex(/^cgch1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.[A-Za-z0-9_-]{43}$/),
-  category: z.string().min(1).max(64),
-  timeBand: z.string().min(1).max(64),
-  area: z.string().min(1).max(64),
-  color: z.string().min(1).max(64),
-  confidence: z.enum(["strong", "possible", "weak"]),
-  reasons: z.array(z.string().min(1).max(160)).max(8),
-  expiresAt: z.number().int().safe().positive(),
-});
-const responseSchema = z.strictObject({
-  reportVersion: z.number().int().safe().positive(),
-  candidates: z.array(candidateSchema).max(3),
-  message: z.string().min(1).max(256),
-});
 
 export interface CandidateFinderProps {
   reportId: string;
@@ -76,7 +60,7 @@ export function CandidateFinder({ reportId, reportVersion, fetcher = fetch, clas
         signal: controller.signal,
       });
       if (!response.ok) throw new Error("request failed");
-      const parsed = responseSchema.safeParse(await response.json());
+      const parsed = candidateSearchSchema.safeParse(await response.json());
       if (!parsed.success) throw new Error("invalid response");
       if (!isCurrent()) return;
       setStored({
