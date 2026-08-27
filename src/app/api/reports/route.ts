@@ -56,11 +56,23 @@ export function createReportsRouteHandlers(dependencies: ReportRouteDependencies
           repository: dependencies.repository,
           routeKey: "api.reports.list",
         });
-        const reports = executeAuthorizedRead({
+        const owned = executeAuthorizedRead({
           context,
           limiter: dependencies.limiter,
           read: () => reportService(dependencies).listOwned(reportActorContext(context)),
         });
+        const reports = owned
+          .filter((report) => context.query.status === undefined || report.status === context.query.status)
+          .slice(0, context.query.limit ?? 20)
+          .map((report) => Object.freeze({
+            reportId: report.reportId,
+            category: report.category,
+            timeWindow: report.timeWindow,
+            area: report.area,
+            color: report.color,
+            status: report.status,
+            version: report.version,
+          }));
         return privateJson({ reports });
       } catch (error) {
         return mapApiError(error);

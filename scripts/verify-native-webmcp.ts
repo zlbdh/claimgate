@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { chromium, type Page } from "@playwright/test";
+import { readPrivateEvidenceSeedForTest } from "@/test/private-evidence-seed-reader";
 
 type NativeTool = Readonly<{
   name: string;
@@ -19,6 +20,9 @@ type NativeContext = Readonly<{
 }>;
 
 const phases: Array<{ phase: string; tools: string[]; schemas: string[] }> = [];
+const executedTools = new Set<string>();
+const WRITES = new Set(["create_lost_report_draft", "update_lost_report_draft", "stage_claim_candidate"]);
+const UNTRUSTED = new Set(["list_my_reports", "find_candidate_matches", "list_pending_claims", "get_claim_review_summary"]);
 
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -66,12 +70,18 @@ async function expectTools(page: Page, phase: string, expected: string[]): Promi
     if (stable >= 3) break;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  if (stable < 3 || !tools) throw new Error(`${phase} tool membership did not stabilize`);
+  if (stable < 3 || !tools) {
+    throw new Error(`${phase} tool membership did not stabilize: ${JSON.stringify(tools?.map(({ name }) => name))}`);
+  }
   for (const tool of tools) {
     if (typeof tool.inputSchema !== "string") throw new Error("Chrome 151 inputSchema was not a string");
     const parsed = JSON.parse(tool.inputSchema) as { type?: unknown; additionalProperties?: unknown };
     if (parsed.type !== "object" || parsed.additionalProperties !== false) {
       throw new Error("Native tool schema was not a strict object");
+    }
+    if (tool.annotations?.readOnlyHint !== !WRITES.has(tool.name)
+      || tool.annotations?.untrustedContentHint !== UNTRUSTED.has(tool.name)) {
+      throw new Error(`Native tool annotations were incorrect for ${tool.name}`);
     }
   }
   phases.push({ phase, tools: tools.map((tool) => tool.name), schemas: tools.map((tool) => `${tool.name}:JSON-string`) });
@@ -91,6 +101,7 @@ async function execute(page: Page, name: string, input: unknown): Promise<{ raw:
   }
   const parsed = JSON.parse(result.raw) as Record<string, unknown>;
   if (parsed.ok !== true) throw new Error(`${name} returned an error envelope`);
+  executedTools.add(name);
   return { raw: result.raw, parsed };
 }
 
@@ -150,12 +161,17 @@ async function main() {
     const createdData = created.parsed.data as Record<string, unknown>;
     if (createdData.status !== "DRAFT" || typeof created.parsed.nextPath !== "string") throw new Error("Invalid create result");
     await page.waitForURL(`${origin}${created.parsed.nextPath}`);
-    await expectTools(page, "DRAFT report", ["list_my_reports"]);
+    await expectTools(page, "DRAFT report", ["list_my_reports", "update_lost_report_draft"]);
+    const reportId = createdData.reportId as string;
+    rawResults.push((await execute(page, "update_lost_report_draft", {
+      reportId, expectedVersion: 1, patch: { color: "black" },
+      idempotencyKey: "native-update-0000001",
+    })).raw);
+    await page.locator(".workspace-header").getByText(/revision 2/i).waitFor();
     html.push(await page.content());
 
     await page.getByRole("button", { name: "Publish report manually" }).click();
     const publishedTools = await expectTools(page, "PUBLISHED report", ["find_candidate_matches", "list_my_reports"]);
-    const reportId = page.url().split("/").at(-1)!;
     const found = await execute(page, "find_candidate_matches", { reportId, limit: 1 });
     rawResults.push(found.raw);
     const foundData = found.parsed.data as { reportVersion: number; candidates: Array<{ candidateHandle: string }> };
@@ -174,10 +190,49 @@ async function main() {
     if (typeof staged.parsed.nextPath !== "string") throw new Error("Invalid stage result");
     await page.waitForURL(`${origin}${staged.parsed.nextPath}`);
     await page.getByRole("heading", { name: "Evidence checkpoint" }).waitFor();
-    await expectTools(page, "EVIDENCE_REQUIRED checkpoint", []);
+    const claimId = (staged.parsed.data as Record<string, unknown>).claimId as string;
+    await expectTools(page, "EVIDENCE_REQUIRED checkpoint", ["get_claim_status"]);
+    rawResults.push((await execute(page, "get_claim_status", { claimId })).raw);
+    const evidence = readPrivateEvidenceSeedForTest(0);
+    await page.getByLabel("Private evidence · unique mark").fill(evidence.unique_mark);
+    await page.getByLabel("Private evidence · contents or accessory").fill(evidence.contents_or_accessory);
+    await page.getByRole("button", { name: "Submit private evidence" }).click();
+    await page.getByRole("heading", { name: "Waiting for Staff review" }).waitFor();
+    await expectTools(page, "UNDER_REVIEW Claimant", ["get_claim_status"]);
+    html.push(await page.content());
+    await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+    await page.getByRole("button", { name: "Switch to Staff role" }).click();
+    await page.getByRole("link", { name: "Open Staff review desk" }).click();
+    await expectTools(page, "Staff queue", ["list_pending_claims"]);
+    rawResults.push((await execute(page, "list_pending_claims", { limit: 3 })).raw);
+    await page.goto(`${origin}/staff/claims/${claimId}`);
+    await expectTools(page, "Staff UNDER_REVIEW claim", ["get_claim_review_summary", "get_claim_status"]);
+    rawResults.push((await execute(page, "get_claim_review_summary", { claimId })).raw);
+    await page.getByRole("button", { name: "Approve claim" }).click();
+    await page.locator(".status-stamp").getByText("APPROVED").waitFor();
+    await expectTools(page, "Staff APPROVED claim", ["get_claim_review_summary", "get_claim_status"]);
+
+    await page.goto(origin);
+    await page.getByRole("button", { name: "Switch to Claimant role" }).click();
+    await page.goto(`${origin}/claimant/claims/${claimId}`);
+    await expectTools(page, "Claimant APPROVED claim", ["get_claim_status", "get_pickup_instructions"]);
+    rawResults.push((await execute(page, "get_pickup_instructions", { claimId })).raw);
+    const issueResponse = page.waitForResponse((response) => response.url().endsWith("/pickup-pass/issue"));
+    await page.getByRole("button", { name: "Generate pickup pass" }).click();
+    const pickupToken = ((await (await issueResponse).json()) as { token: string }).token;
+
+    await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+    await page.getByRole("button", { name: "Switch to Staff role" }).click();
+    await page.goto(`${origin}/staff/claims/${claimId}`);
+    await expectTools(page, "Staff PICKUP_READY claim", ["get_claim_review_summary", "get_claim_status"]);
+    await page.getByLabel("One-time pickup credential").fill(pickupToken);
+    await page.getByRole("button", { name: "Confirm atomic handoff" }).click();
+    await page.locator(".status-stamp").getByText("COLLECTED").waitFor();
+    await expectTools(page, "Staff COLLECTED claim", ["get_claim_status"]);
+    rawResults.push((await execute(page, "get_claim_status", { claimId })).raw);
     html.push(await page.content());
     const activity = await page.locator(".agent-activity").innerText();
-    await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+    await page.goto(origin);
     await expectTools(page, "Home teardown", []);
 
     const database = new Database(databasePath, { readonly: true });
@@ -194,6 +249,14 @@ async function main() {
     if (publishedTools.map((tool) => tool.name).join(",") !== "find_candidate_matches,list_my_reports") {
       throw new Error("Native lexical tool ordering changed");
     }
+    const expectedExecuted = [
+      "create_lost_report_draft", "find_candidate_matches", "get_claim_review_summary",
+      "get_claim_status", "get_pickup_instructions", "list_my_reports",
+      "list_pending_claims", "stage_claim_candidate", "update_lost_report_draft",
+    ];
+    if (JSON.stringify([...executedTools].sort()) !== JSON.stringify(expectedExecuted)) {
+      throw new Error(`Native nine-tool execution incomplete: ${JSON.stringify([...executedTools].sort())}`);
+    }
 
     console.log(JSON.stringify({
       checkedAt: new Date().toISOString(),
@@ -205,7 +268,12 @@ async function main() {
         executeTool: "executeTool(descriptor, JSON.stringify(input)) -> Promise<string|null>",
       },
       phases,
-      writes: { createNonNullJsonString: true, stageNonNullJsonString: true },
+      executedTools: [...executedTools].sort(),
+      writes: {
+        createNonNullJsonString: true,
+        updateNonNullJsonString: true,
+        stageNonNullJsonString: true,
+      },
       navigation: "same-document Next navigation reached both nextPath values",
       teardown: "left Claimant pages; native getTools returned []",
       isolation: "fresh temporary SQLite database and fresh demo instance; deleted after run",

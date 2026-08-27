@@ -59,6 +59,14 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     allowedRoles: claimantRole, requiresOneTime: false,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_stage,
   }),
+  "api.claims.status": Object.freeze({
+    method: "GET", path: "/api/claims/:claimId", action: null,
+    allowedRoles: publicDemoRoles, requiresOneTime: false, ratePolicy: null,
+  }),
+  "api.claims.pickup.instructions": Object.freeze({
+    method: "GET", path: "/api/claims/:claimId/pickup-instructions", action: null,
+    allowedRoles: claimantRole, requiresOneTime: false, ratePolicy: null,
+  }),
   "api.claims.evidence": Object.freeze({
     method: "POST", path: "/api/claims/:claimId/evidence", action: "evidence_submit",
     allowedRoles: claimantRole, requiresOneTime: true,
@@ -94,15 +102,27 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     allowedRoles: staffRole, requiresOneTime: true,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.handoff,
   }),
+  "api.staff.claims.list": Object.freeze({
+    method: "GET", path: "/api/staff/claims", action: null,
+    allowedRoles: staffRole, requiresOneTime: false, ratePolicy: null,
+  }),
+  "api.staff.claims.review": Object.freeze({
+    method: "GET", path: "/api/staff/claims/:claimId", action: null,
+    allowedRoles: staffRole, requiresOneTime: false, ratePolicy: null,
+  }),
 } satisfies Record<string, AuthenticatedRouteDefinition>);
 
 export type AuthenticatedRouteKey = keyof typeof AUTHENTICATED_ROUTE_REGISTRY;
+export type AuthenticatedRouteQuery = Readonly<{
+  limit?: number;
+  status?: "DRAFT" | "PUBLISHED" | "RESOLVED" | "ARCHIVED";
+}>;
 
 export type ResolvedAuthenticatedRoute = Readonly<{
   canonicalPath: string;
   csrfRouteId: string;
   params: Readonly<Record<string, string>>;
-  query: Readonly<{ limit?: number }>;
+  query: AuthenticatedRouteQuery;
 }>;
 
 export function getAuthenticatedRoute(
@@ -141,8 +161,37 @@ function resolvePath(template: string, pathname: string): {
   return { canonicalPath: canonical.join("/"), params: Object.freeze(params) };
 }
 
-function resolveQuery(url: URL, routeKey: AuthenticatedRouteKey): Readonly<{ limit?: number }> {
-  if (routeKey !== "api.reports.matches") {
+function resolveReportListQuery(url: URL): AuthenticatedRouteQuery {
+  const keys = [...url.searchParams.keys()];
+  if (
+    keys.some((key) => key !== "status" && key !== "limit")
+    || url.searchParams.getAll("status").length > 1
+    || url.searchParams.getAll("limit").length > 1
+  ) throw new DomainError("FORBIDDEN");
+  const status = url.searchParams.get("status");
+  const limit = url.searchParams.get("limit");
+  if (
+    status !== null && !["DRAFT", "PUBLISHED", "RESOLVED", "ARCHIVED"].includes(status)
+    || limit !== null && (!/^(?:[1-9]|1[0-9]|20)$/.test(limit))
+  ) throw new DomainError("FORBIDDEN");
+  const canonical = status === null
+    ? limit === null ? "" : `?limit=${limit}`
+    : limit === null ? `?status=${status}` : `?status=${status}&limit=${limit}`;
+  if (url.search !== canonical) throw new DomainError("FORBIDDEN");
+  return Object.freeze({
+    ...(status === null ? {} : { status: status as AuthenticatedRouteQuery["status"] }),
+    ...(limit === null ? {} : { limit: Number(limit) }),
+  });
+}
+
+function resolveQuery(url: URL, routeKey: AuthenticatedRouteKey): AuthenticatedRouteQuery {
+  if (routeKey === "api.reports.list") return resolveReportListQuery(url);
+  const limitMaximum = routeKey === "api.reports.matches"
+    ? 3
+    : routeKey === "api.staff.claims.list"
+      ? 3
+      : null;
+  if (limitMaximum === null) {
     if (url.search !== "") throw new DomainError("FORBIDDEN");
     return Object.freeze({});
   }
@@ -152,7 +201,8 @@ function resolveQuery(url: URL, routeKey: AuthenticatedRouteKey): Readonly<{ lim
   }
   const value = url.searchParams.get("limit");
   if (value === null) return Object.freeze({});
-  if (!/^[1-3]$/.test(value)) throw new DomainError("FORBIDDEN");
+  if (!/^[1-9]$/.test(value) || Number(value) > limitMaximum) throw new DomainError("FORBIDDEN");
+  if (url.search !== `?limit=${value}`) throw new DomainError("FORBIDDEN");
   return Object.freeze({ limit: Number(value) });
 }
 

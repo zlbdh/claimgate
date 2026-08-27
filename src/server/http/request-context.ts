@@ -10,6 +10,7 @@ import {
   getAuthenticatedRoute,
   resolveAuthenticatedRoute,
   type AuthenticatedRouteKey,
+  type AuthenticatedRouteQuery,
 } from "./authenticated-route-registry";
 import { throwRateLimited } from "./api-error";
 import { requireAuthenticatedReadOrigin, requireAuthenticatedWriteOrigin } from "./origin";
@@ -162,7 +163,7 @@ export type AuthenticatedReadContext = Readonly<{
   routeKey: AuthenticatedRouteKey;
   action: RateLimitAction | null;
   params: Readonly<Record<string, string>>;
-  query: Readonly<{ limit?: number }>;
+  query: AuthenticatedRouteQuery;
 }>;
 
 export function createAuthenticatedReadContext(input: {

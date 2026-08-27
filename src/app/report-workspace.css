@@ -210,7 +210,8 @@
 .agent-activity li:last-child { border-bottom: 0; }
 .agent-activity li strong { font-family: ui-monospace, "Cascadia Mono", monospace; }
 .agent-activity li span { grid-column: 1; color: var(--ink-soft); }
-.agent-activity time { grid-column: 2; grid-row: 1 / span 2; color: var(--ink-soft); }
+.agent-activity li .activity-duration { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 3px; color: var(--ink-soft); }
+.agent-activity .activity-duration time { color: inherit; }
 
 .claim-checkpoint { width: 100%; max-width: 880px; margin: 0 auto; }
 .status-evidence-required { color: var(--red); background: #f6e6df; }

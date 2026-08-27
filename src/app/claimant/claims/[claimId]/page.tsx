@@ -67,7 +67,10 @@ export default async function ClaimCheckpointPage({ params }: { params: Promise<
         : "Claim status";
   return (
     <>
-      <WebMcpPageScope scope={{ role: "CLAIMANT", page: "CLAIM", claimStatus: claim.status }} />
+      <WebMcpPageScope scope={{
+        role: "CLAIMANT", page: "CLAIM", claimId,
+        claimStatus: claim.status, claimVersion: claim.version,
+      }} />
       <main className="report-workspace claim-checkpoint">
         <Link className="workspace-back" href="/">← Return to ClaimGate desk</Link>
         <header className="workspace-header">

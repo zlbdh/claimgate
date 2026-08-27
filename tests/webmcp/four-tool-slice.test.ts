@@ -5,6 +5,7 @@ import {
   type ClaimGateToolExecutor,
 } from "@/features/webmcp/tool-contracts";
 import { toolNamesForScope } from "@/features/webmcp/tool-registry";
+import { completeTestExecutor } from "./test-executor";
 
 const VALID_CREATE = {
   category: "earbuds",
@@ -20,7 +21,7 @@ const VALID_CREATE = {
 };
 
 function executor(): ClaimGateToolExecutor {
-  return {
+  return completeTestExecutor({
     createDraft: vi.fn<ClaimGateToolExecutor["createDraft"]>(async () => ({
       ok: true,
       data: { reportId: "report-public", status: "DRAFT", version: 1 },
@@ -41,17 +42,16 @@ function executor(): ClaimGateToolExecutor {
       },
       nextPath: "/claimant/claims/claim-public",
     })),
-  };
+  });
 }
 
 describe("Task 6A exact WebMCP contracts", () => {
   it("declares the exact four names, explicit annotations, and strict schemas", () => {
     const tools = createClaimGateTools(executor());
     expect(CLAIMGATE_TOOL_NAMES).toEqual([
-      "create_lost_report_draft",
-      "list_my_reports",
-      "find_candidate_matches",
-      "stage_claim_candidate",
+      "create_lost_report_draft", "update_lost_report_draft", "list_my_reports",
+      "find_candidate_matches", "stage_claim_candidate", "get_claim_status",
+      "get_pickup_instructions", "list_pending_claims", "get_claim_review_summary",
     ]);
     expect(Object.keys(tools)).toEqual(CLAIMGATE_TOOL_NAMES);
     expect(tools.create_lost_report_draft.annotations).toEqual({
@@ -267,10 +267,10 @@ describe("Task 6A exact WebMCP contracts", () => {
 describe("Task 6A legal page tool matrix", () => {
   it.each([
     [{ role: "CLAIMANT", page: "WORKSPACE" }, ["create_lost_report_draft", "list_my_reports"]],
-    [{ role: "CLAIMANT", page: "REPORT", reportId: "r", reportStatus: "DRAFT", reportVersion: 1 }, ["list_my_reports"]],
+    [{ role: "CLAIMANT", page: "REPORT", reportId: "r", reportStatus: "DRAFT", reportVersion: 1 }, ["update_lost_report_draft", "list_my_reports"]],
     [{ role: "CLAIMANT", page: "REPORT", reportId: "r", reportStatus: "PUBLISHED", reportVersion: 2 }, ["find_candidate_matches", "list_my_reports"]],
     [{ role: "CLAIMANT", page: "REPORT", reportId: "r", reportStatus: "PUBLISHED", reportVersion: 2, candidateReportVersion: 2, candidateCount: 1 }, ["find_candidate_matches", "list_my_reports", "stage_claim_candidate"]],
-    [{ role: "CLAIMANT", page: "CLAIM", claimStatus: "EVIDENCE_REQUIRED" }, []],
+    [{ role: "CLAIMANT", page: "CLAIM", claimId: "c", claimStatus: "EVIDENCE_REQUIRED", claimVersion: 1 }, ["get_claim_status"]],
     [{ role: "STAFF", page: "OTHER" }, []],
     [{ role: "ANONYMOUS", page: "OTHER" }, []],
   ] as const)("exposes only the legal set for %o", (scope, expected) => {

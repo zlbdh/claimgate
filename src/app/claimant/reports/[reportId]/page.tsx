@@ -57,6 +57,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ r
           reportStatus: report.status,
           reportVersion: report.version,
         }}
+        updateCsrfToken={updateCsrf}
         stageCsrfToken={stageCsrf}
       />
       <main className="report-workspace report-detail">

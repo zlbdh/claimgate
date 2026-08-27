@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createAuditService } from "@/features/audit/audit-service";
 import { formatWaitingDuration } from "@/features/audit/staff-time";
@@ -23,6 +24,8 @@ export default async function StaffQueuePage() {
     sessionExpiresAt: session.expiresAt,
   });
   return (
+    <>
+    <WebMcpPageScope scope={{ role: "STAFF", page: "STAFF_QUEUE" }} />
     <main className="report-workspace staff-workspace">
       <Link className="workspace-back" href="/">← Return to ClaimGate desk</Link>
       <header className="workspace-header">
@@ -54,5 +57,6 @@ export default async function StaffQueuePage() {
         )}
       </section>
     </main>
+    </>
   );
 }

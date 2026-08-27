@@ -20,7 +20,7 @@ function response(value: unknown, status = 200, headers: Record<string, string> 
 }
 
 describe("real HTTP tool executor", () => {
-  it("uses fixed same-origin report routes and strips tags/descriptions from list output", async () => {
+  it("uses fixed same-origin report routes and consumes bounded list summaries", async () => {
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const path = String(input);
       if (path === "/api/reports" && init?.method === "POST") {
@@ -31,14 +31,13 @@ describe("real HTTP tool executor", () => {
         expect(String(init.body)).not.toContain("csrf");
         return response({ reportId: "report-public", status: "DRAFT", version: 1, nextPath: "/claimant/reports/report-public" }, 201);
       }
-      expect(path).toBe("/api/reports");
+      expect(path).toBe("/api/reports?status=DRAFT&limit=1");
       expect(init).toMatchObject({ method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error" });
       expect(new Headers(init?.headers).has("x-csrf-token")).toBe(false);
       return response({ reports: [{
         reportId: "report-public", category: "earbuds",
         timeWindow: { from: "2026-08-25T17:00:00.000Z", to: "2026-08-25T19:00:00.000Z" },
-        area: "library", color: "black", publicTags: ["wireless"],
-        publicDescription: "User supplied public description.", status: "DRAFT", version: 1,
+        area: "library", color: "black", status: "DRAFT", version: 1,
       }] });
     });
     const executor = createToolExecutor({ fetcher, createCsrfToken: "closure-create-token" });

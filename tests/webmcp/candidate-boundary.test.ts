@@ -4,6 +4,7 @@ import {
   type ClaimGateToolExecutor,
 } from "@/features/webmcp/tool-contracts";
 import { validateStageClaimCommand } from "@/features/claims/claim-schema";
+import { completeTestExecutor } from "./test-executor";
 
 const canonicalMac = "A".repeat(43);
 const stageBase = {
@@ -22,16 +23,13 @@ const invalidHandles = [
 ];
 
 function executor(): ClaimGateToolExecutor {
-  return {
-    createDraft: vi.fn() as never,
-    listReports: vi.fn() as never,
-    findCandidates: vi.fn() as never,
+  return completeTestExecutor({
     stageClaim: vi.fn<ClaimGateToolExecutor["stageClaim"]>(async () => ({
       ok: true,
       data: { claimId: "claim-public", status: "EVIDENCE_REQUIRED", version: 1, remainingAttempts: 3 },
       nextPath: "/claimant/claims/claim-public",
     })),
-  };
+  });
 }
 
 describe("shared canonical candidate handle boundary", () => {

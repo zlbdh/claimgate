@@ -97,7 +97,7 @@ async function stageClaimForReview(page: Page, keySuffix: string) {
   return staged.parsed.data.claimId as string;
 }
 
-test("real provider executes all four tools across the production Claimant flow", async ({ page }, testInfo) => {
+test("real provider executes the state-aware tools across the production Claimant flow", async ({ page }, testInfo) => {
   const browserLogs: string[] = [];
   const pageErrors: string[] = [];
   const html: string[] = [];
@@ -119,7 +119,7 @@ test("real provider executes all four tools across the production Claimant flow"
   });
   expect(created.raw).not.toBeNull();
   await expect(page).toHaveURL(/\/claimant\/reports\//);
-  await expect.poll(() => toolNames(page)).toEqual(["list_my_reports"]);
+  await expect.poll(() => toolNames(page)).toEqual(["list_my_reports", "update_lost_report_draft"]);
   html.push(await page.content());
   await page.getByRole("button", { name: "Publish report manually" }).click();
   await expect.poll(() => toolNames(page)).toEqual(["find_candidate_matches", "list_my_reports"]);
@@ -143,7 +143,7 @@ test("real provider executes all four tools across the production Claimant flow"
   const claimResponse = await page.context().request.get(page.url());
   expect(claimResponse.headers()["cache-control"]).toContain("private");
   expect(claimResponse.headers()["cache-control"]).toContain("no-store");
-  await expect.poll(() => toolNames(page)).toEqual([]);
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_status"]);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.screenshot({ path: testInfo.outputPath("claim-checkpoint-desktop.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

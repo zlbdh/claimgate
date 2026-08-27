@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createClaimGateTools, type ClaimGateToolExecutor } from "@/features/webmcp/tool-contracts";
+import { createClaimGateTools } from "@/features/webmcp/tool-contracts";
 import { createToolExecutor } from "@/features/webmcp/tool-executor";
+import { completeTestExecutor } from "./test-executor";
 
 const candidate = {
   candidateHandle: `cgch1.1.2.${"A".repeat(43)}`,
@@ -45,15 +46,12 @@ describe("shared find response side-effect boundary", () => {
   });
 
   it("uses the same boundary again before final tool output", async () => {
-    const target = {
-      createDraft: vi.fn() as never,
-      listReports: vi.fn() as never,
-      stageClaim: vi.fn() as never,
+    const target = completeTestExecutor({
       findCandidates: vi.fn(async () => ({
         ok: true,
         data: { ...legal, candidates: [{ ...candidate, candidateHandle: `cgch1.1.2.${"A".repeat(42)}B` }] },
       })) as never,
-    } satisfies ClaimGateToolExecutor;
+    });
     await expect(createClaimGateTools(target).find_candidate_matches.execute({ reportId: "report-public" }))
       .resolves.toEqual({ ok: false, error: { code: "INTERNAL_ERROR", message: "Internal server error." } });
   });

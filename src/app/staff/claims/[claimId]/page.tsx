@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { ClaimStepper } from "@/components/claim-stepper";
 import { StaffDecisionForm } from "@/components/staff-decision-form";
 import { StaffHandoffForm } from "@/components/staff-handoff-form";
@@ -43,6 +44,11 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
       })
     : undefined;
   return (
+    <>
+    <WebMcpPageScope scope={{
+      role: "STAFF", page: "CLAIM", claimId,
+      claimStatus: review.claim.status, claimVersion: review.claim.version,
+    }} />
     <main className="report-workspace staff-workspace">
       <Link className="workspace-back" href="/staff">← Staff review queue</Link>
       <header className="workspace-header">
@@ -104,5 +110,6 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
         </aside>
       </div>
     </main>
+    </>
   );
 }

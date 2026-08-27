@@ -49,7 +49,7 @@ async function execute(page: Page, name: string, input: unknown) {
 async function toolNames(page: Page) {
   return page.evaluate(async () => {
     const context = document.modelContext as unknown as { getTools(): Promise<Array<{ name: string }>> };
-    return (await context.getTools()).map(({ name }) => name);
+    return (await context.getTools()).map(({ name }) => name).sort();
   });
 }
 
@@ -104,6 +104,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   await page.clock.install();
   await installModelContext(page);
   const claimId = await reachApproved(page);
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_status", "get_pickup_instructions"]);
   await expect(page.getByRole("button", { name: "Generate pickup pass" })).toBeVisible();
   const issueResponse = page.waitForResponse((response) =>
     response.url().endsWith(`/api/claims/${claimId}/pickup-pass/issue`));
@@ -144,6 +145,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
     expect(await restoredCanvas.evaluate((canvas) => (canvas as HTMLCanvasElement).width)).toBe(0);
   }
   await page.goto(`/claimant/claims/${claimId}`);
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_status", "get_pickup_instructions"]);
   await expect(page.getByRole("button", { name: "Reissue pickup pass" })).toBeVisible();
   const reissueResponse = page.waitForResponse((response) =>
     response.url().endsWith(`/api/claims/${claimId}/pickup-pass/reissue`));
@@ -163,6 +165,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
   await page.getByRole("button", { name: "Switch to Staff role" }).click();
   await page.goto(`/staff/claims/${claimId}`);
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_review_summary", "get_claim_status"]);
   const credentialInput = page.getByLabel("One-time pickup credential");
   await credentialInput.fill(issued.token);
   await page.getByRole("button", { name: "Confirm atomic handoff" }).click();
@@ -180,6 +183,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
     second.getByRole("button", { name: "Confirm atomic handoff" }).click(),
   ]);
   await expect(page.locator(".status-stamp")).toContainText("COLLECTED");
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_status"]);
   await expect(second.locator(".status-stamp")).toContainText("COLLECTED");
   await expect(page.getByText(/item returned and report resolved/i)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

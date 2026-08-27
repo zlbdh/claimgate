@@ -8,8 +8,13 @@ const SAFE_ERROR_CODES = new Set([
 
 export type ActivityStateChange =
   | "Draft page opened"
+  | "Draft updated"
   | "Candidate state updated"
   | "Claim checkpoint opened"
+  | "Claim status read"
+  | "Pickup instructions read"
+  | "Pending queue read"
+  | "Review summary read"
   | "No page change";
 
 export type AgentActivityEntry = Readonly<{

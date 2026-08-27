@@ -42,6 +42,45 @@ describe("authenticated dynamic route registry", () => {
     ).query).toEqual({});
   });
 
+  it("strictly accepts one optional canonical Staff queue limit", () => {
+    expect(resolveAuthenticatedRoute(
+      new Request("https://example.test/api/staff/claims?limit=3"),
+      "api.staff.claims.list",
+    ).query).toEqual({ limit: 3 });
+    expect(resolveAuthenticatedRoute(
+      new Request("https://example.test/api/staff/claims"),
+      "api.staff.claims.list",
+    ).query).toEqual({});
+  });
+
+  it.each([
+    "?limit=01", "?limit=0", "?limit=4", "?limit=%31", "?limit=1&",
+    "?limit=2&limit=3", "?other=2", "?limit=2&other=2",
+  ])("rejects malformed, duplicate, and extra Staff queue query: %s", (query) => {
+    expect(() => resolveAuthenticatedRoute(
+      new Request(`https://example.test/api/staff/claims${query}`),
+      "api.staff.claims.list",
+    )).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
+  });
+
+  it("accepts only canonical bounded report-list filters", () => {
+    expect(resolveAuthenticatedRoute(
+      new Request("https://example.test/api/reports?status=DRAFT&limit=20"),
+      "api.reports.list",
+    ).query).toEqual({ status: "DRAFT", limit: 20 });
+    expect(resolveAuthenticatedRoute(
+      new Request("https://example.test/api/reports?limit=1"),
+      "api.reports.list",
+    ).query).toEqual({ limit: 1 });
+    for (const query of [
+      "?limit=21", "?status=UNKNOWN", "?limit=1&status=DRAFT",
+      "?status=DRAFT&limit=1&limit=2", "?status=%44RAFT&limit=1", "?extra=1",
+    ]) expect(() => resolveAuthenticatedRoute(
+      new Request(`https://example.test/api/reports${query}`),
+      "api.reports.list",
+    )).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
+  });
+
   it.each([
     "?limit=02",
     "?limit=0",
@@ -87,5 +126,28 @@ describe("authenticated dynamic route registry", () => {
       params: { claimId: "claim_A" },
       query: {},
     });
+  });
+
+  it.each([
+    ["api.claims.status", "/api/claims/claim_A", ["CLAIMANT", "STAFF"]],
+    ["api.claims.pickup.instructions", "/api/claims/claim_A/pickup-instructions", ["CLAIMANT"]],
+    ["api.staff.claims.list", "/api/staff/claims", ["STAFF"]],
+    ["api.staff.claims.review", "/api/staff/claims/claim_A", ["STAFF"]],
+  ] as const)("binds authenticated read %s to its exact role and path", (key, path, roles) => {
+    const route = getAuthenticatedRoute(key);
+    const resolved = resolveAuthenticatedRoute(new Request(`https://example.test${path}`), key);
+    expect(route).toMatchObject({
+      method: "GET", action: null, allowedRoles: roles, requiresOneTime: false, ratePolicy: null,
+    });
+    expect(resolved).toMatchObject({ canonicalPath: path });
+  });
+
+  it.each([
+    ["api.claims.status", "/api/claims/claim%2fA"],
+    ["api.claims.pickup.instructions", "/api/claims/claim%2fA/pickup-instructions"],
+    ["api.staff.claims.review", "/api/staff/claims/claim%2fA"],
+  ] as const)("rejects percent-encoded authenticated read path for %s", (key, path) => {
+    expect(() => resolveAuthenticatedRoute(new Request(`https://example.test${path}`), key))
+      .toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 });
