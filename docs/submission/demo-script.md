@@ -28,7 +28,7 @@ strictly under 3 minutes.
 | Time | Visible action | Original narration |
 | --- | --- | --- |
 | 0:00-0:08 | Show the public ClaimGate domain in the in-app browser. Click **Start public demo**. | "ClaimGate lets an Agent handle the repetitive search steps while people keep control of proof and release." |
-| 0:08-0:20 | Ask: **Create a lost-report draft for category earbuds, from `2026-08-25T17:30:00Z` to `2026-08-25T19:30:00Z`, area library, color black, tags wireless, charging-case, compact, and public description Black wireless earbud case lost near the library.** Show `create_lost_report_draft` and the draft page. | "The in-app browser discovers native WebMCP tools for the current page. The Agent turns my description into a structured private draft." |
+| 0:08-0:20 | Ask: **Create a lost-report draft for category earbuds, from `2026-08-25T17:30:00.000Z` to `2026-08-25T19:30:00.000Z`, area library, color black, tags wireless, charging-case, compact, and public description Black wireless earbud case lost near the library.** Show `create_lost_report_draft` and the draft page. | "The in-app browser discovers native WebMCP tools for the current page. The Agent turns my description into a structured private draft." |
 | 0:20-0:29 | Ask: **Update the public description to Black wireless earbud charging case lost near the library reading room.** Show `update_lost_report_draft`. | "The server still checks the signed session, owner, version, and rate limit." |
 | 0:29-0:36 | Ask: **List my reports.** Show `list_my_reports` and the current draft. | "A bounded read confirms the saved report without exposing private proof." |
 | 0:36-0:43 | Click **Publish report manually**. | "Publication has no WebMCP tool. I make that decision in the page." |
