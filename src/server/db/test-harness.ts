@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { createKeyring } from "@/server/security/keyring";
+import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
 import { initializeDatabase } from "./migrate";
 import { createRepository, type ClaimGateRepository } from "./repository";
 
@@ -27,10 +28,18 @@ export function createTestDatabase(initialNow = Date.UTC(2026, 7, 26, 12)): Test
   });
   let currentNow = initialNow;
   let sequence = 0;
+  let saltSequence = 0;
+  const keyring = createKeyring(TEST_MASTER_KEY);
   const repository = createRepository({
     database,
     now: () => currentNow,
     randomId: () => `test-${++sequence}-${crypto.randomUUID()}`,
+    evidenceDigester: createEvidenceDigester(keyring.getKey("evidence")),
+    randomBytes: (size) => {
+      const value = Buffer.alloc(size);
+      value.writeUInt32BE(++saltSequence, size - 4);
+      return value;
+    },
   });
 
   return {

@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { closeSync, openSync, rmSync } from "node:fs";
 import { findMatches } from "@/features/matching/match-service";
+import { EVIDENCE_SLOTS } from "@/features/evidence/evidence-digester";
 import { report as matchingReport } from "@/test/factories";
 import { createKeyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
@@ -95,7 +96,7 @@ describe("SQLite 连接与配置密钥连续性", () => {
 describe("隔离演示实例与种子", () => {
   it("在单事务中物理克隆 1 个强匹配与 6 个同类干扰项", () => {
     const now = Date.UTC(2026, 7, 26, 12);
-    const { repository } = setup(now);
+    const { repository, database } = setup(now);
     const first = repository.createDemoInstance();
     const second = repository.createDemoInstance();
 
@@ -109,6 +110,25 @@ describe("隔离演示实例与种子", () => {
     expect(secondItems.map((item) => item.inventoryItemId)).not.toEqual(
       firstItems.map((item) => item.inventoryItemId),
     );
+    const evidenceRows = database.prepare(`
+      SELECT salt, digest FROM item_evidence_slots ORDER BY demo_instance_id, found_item_id, slot
+    `).all() as Array<{ salt: Buffer; digest: Buffer }>;
+    expect(evidenceRows).toHaveLength(42);
+    expect(evidenceRows.every(({ salt, digest }) => salt.length === 16 && digest.length === 32)).toBe(true);
+    expect(new Set(evidenceRows.map(({ salt }) => salt.toString("hex"))).size).toBe(42);
+    for (const item of firstItems) {
+      const slots = repository.listServerInternalEvidenceSlots(
+        first.demoInstanceId,
+        item.inventoryItemId,
+      );
+      expect(slots.map(({ slot }) => slot)).toEqual(EVIDENCE_SLOTS);
+      const originalSalt = Buffer.from(slots[0]!.salt);
+      slots[0]!.salt.fill(0);
+      expect(repository.listServerInternalEvidenceSlots(
+        first.demoInstanceId,
+        item.inventoryItemId,
+      )[0]!.salt).toEqual(originalSalt);
+    }
 
     const matches = findMatches(
       matchingReport({ ...createReportInput(first.demoInstanceId), timeWindow: createReportInput(first.demoInstanceId).timeWindow }),

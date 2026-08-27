@@ -2,11 +2,14 @@ import type Database from "better-sqlite3";
 import type { ItemStatus, ClaimStatus, ReportStatus } from "@/features/claims/claim-state";
 import type { PublicFoundItem } from "@/features/inventory/found-item";
 import type { TimeWindow } from "@/features/matching/score-candidate";
+import type { EvidenceDigester } from "@/features/evidence/evidence-digester";
 
 export type RepositoryContext = {
   database: Database.Database;
   now: () => number;
   randomId: () => string;
+  evidenceDigester: EvidenceDigester;
+  randomBytes: (size: number) => Buffer;
 };
 
 export type DemoInstance = {
@@ -147,6 +150,8 @@ export type IdempotencyResult =
 
 export type RepositoryOptions = {
   database: Database.Database;
+  evidenceDigester: EvidenceDigester;
+  randomBytes: (size: number) => Buffer;
   now?: () => number;
   randomId?: () => string;
 };

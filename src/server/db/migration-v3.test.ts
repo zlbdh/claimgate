@@ -90,9 +90,9 @@ function createV2Database(injectFailure = false) {
   `);
   if (injectFailure) {
     database.exec(`
-      CREATE TRIGGER fail_v3_authenticator
+      CREATE TRIGGER fail_v4_authenticator
       BEFORE UPDATE OF schema_version ON database_metadata
-      WHEN NEW.schema_version = 3
+      WHEN NEW.schema_version = 4
       BEGIN SELECT RAISE(ABORT, 'injected migration failure'); END;
     `);
   }
@@ -105,7 +105,7 @@ function createV2Database(injectFailure = false) {
   return { databasePath, databaseUuid, salt, before };
 }
 
-describe("数据库 schema v2 到 v3 additive migration", () => {
+describe("数据库 schema v2 到 v4 preserving migration", () => {
   it("验证 v2 authenticator 后保留全部业务行、UUID/salt，仅新增全局 limiter", () => {
     const legacy = createV2Database();
     const database = initializeDatabase({
@@ -117,7 +117,7 @@ describe("数据库 schema v2 到 v3 additive migration", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 3, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 4, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     for (const [table, count] of Object.entries(legacy.before)) {
       expect(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual(count);
@@ -159,7 +159,7 @@ describe("数据库 schema v2 到 v3 additive migration", () => {
     database.close();
   });
 
-  it("v2 错钥与未知版本都 fail closed 且不写入 v3 表", () => {
+  it("v2 错钥与未知版本都 fail closed 且不写入 v4 表", () => {
     const wrongKey = createV2Database();
     expect(() => initializeDatabase({
       databasePath: wrongKey.databasePath,

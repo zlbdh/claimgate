@@ -1,11 +1,12 @@
 import { Buffer } from "node:buffer";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { createKeyring } from "@/server/security/keyring";
+import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
 import { createRepository } from "./repository";
 import { initializeDatabase } from "./migrate";
 import { TEST_MASTER_KEY } from "./test-harness";
@@ -76,7 +77,7 @@ function createV1Database(injectMigrationFailure = false) {
   return { databasePath, databaseUuid, salt };
 }
 
-describe("数据库 schema v1 到 v3 升级", () => {
+describe("数据库 schema v1 到 v4 升级", () => {
   it("验证 v1 密钥后原子重建业务表，保留数据库身份并失效旧 demo", () => {
     const legacy = createV1Database();
     const database = initializeDatabase({
@@ -88,7 +89,7 @@ describe("数据库 schema v1 到 v3 升级", () => {
         key_check_salt AS keyCheckSalt
       FROM database_metadata WHERE singleton_id = 1
     `).get() as { schemaVersion: number; databaseUuid: string; keyCheckSalt: Buffer };
-    expect(metadata).toMatchObject({ schemaVersion: 3, databaseUuid: legacy.databaseUuid });
+    expect(metadata).toMatchObject({ schemaVersion: 4, databaseUuid: legacy.databaseUuid });
     expect(metadata.keyCheckSalt.equals(legacy.salt)).toBe(true);
     expect(database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get()).toEqual({ count: 0 });
     const auditColumns = database.pragma("table_info(audit_events)") as Array<{ name: string }>;
@@ -99,7 +100,12 @@ describe("数据库 schema v1 到 v3 升级", () => {
     `).get()).toEqual({ type: "table" });
     expect(database.pragma("foreign_key_check")).toEqual([]);
 
-    const repository = createRepository({ database, now: () => 10_000_000 });
+    const repository = createRepository({
+      database,
+      now: () => 10_000_000,
+      evidenceDigester: createEvidenceDigester(createKeyring(TEST_MASTER_KEY).getKey("evidence")),
+      randomBytes,
+    });
     expect(repository.createDemoInstance().catalogVersion).toBe(1);
     database.close();
 

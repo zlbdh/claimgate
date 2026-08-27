@@ -7,39 +7,10 @@ import type { Keyring } from "@/server/security/keyring";
 import { DomainError } from "@/shared/domain-error";
 import { openDatabaseConnection } from "./connection";
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const LEGACY_SCHEMA_VERSION = 1;
-const PREVIOUS_SCHEMA_VERSION = 2;
+const PRESERVED_SCHEMA_VERSIONS = Object.freeze([2, 3] as const);
 const SCHEMA_SQL = readFileSync(join(process.cwd(), "src/server/db/schema.sql"), "utf8");
-const APPLICATION_GLOBAL_LIMITER_SQL = `
-  CREATE TABLE application_rate_limit_buckets (
-    scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
-    action TEXT NOT NULL CHECK (action = 'demo_start'),
-    window_start_ms INTEGER NOT NULL CHECK (
-      typeof(window_start_ms) = 'integer' AND window_start_ms >= 0
-      AND window_start_ms <= 9007199254740991
-    ),
-    request_count INTEGER NOT NULL CHECK (
-      typeof(request_count) = 'integer' AND request_count >= 1 AND request_count <= 1000
-    ),
-    PRIMARY KEY (scope, action, window_start_ms)
-  );
-  CREATE TABLE application_rate_limit_high_water (
-    scope TEXT NOT NULL CHECK (scope = 'public-demo-entry'),
-    action TEXT NOT NULL CHECK (action = 'demo_start'),
-    high_water_time_ms INTEGER NOT NULL CHECK (
-      typeof(high_water_time_ms) = 'integer' AND high_water_time_ms >= 0
-      AND high_water_time_ms <= 9007199254740991
-    ),
-    limit_value INTEGER NOT NULL CHECK (
-      typeof(limit_value) = 'integer' AND limit_value = 30
-    ),
-    window_ms INTEGER NOT NULL CHECK (
-      typeof(window_ms) = 'integer' AND window_ms = 60000
-    ),
-    PRIMARY KEY (scope, action)
-  );
-`;
 
 type MetadataRow = {
   schemaVersion: number;
@@ -130,7 +101,7 @@ function dropDisposableBusinessSchema(database: Database.Database): void {
   `);
 }
 
-function migrateV1ToV3(
+function migrateV1ToV4(
   database: Database.Database,
   keyring: Keyring,
   metadata: MetadataRow,
@@ -159,13 +130,34 @@ function migrateV1ToV3(
   database.exec("DROP TABLE database_metadata_v1");
 }
 
-function migrateV2ToV3(
+function migratePreservingToV4(
   database: Database.Database,
   keyring: Keyring,
   metadata: MetadataRow,
 ): void {
-  verifyMetadata(metadata, keyring, PREVIOUS_SCHEMA_VERSION);
-  database.exec(APPLICATION_GLOBAL_LIMITER_SQL);
+  if (!PRESERVED_SCHEMA_VERSIONS.includes(metadata.schemaVersion as 2 | 3)) {
+    throw new DomainError("CONFIGURATION_ERROR");
+  }
+  verifyMetadata(metadata, keyring, metadata.schemaVersion);
+  const populated = database.prepare(`
+    SELECT 1 FROM item_evidence_slots
+    WHERE salt IS NOT NULL OR digest IS NOT NULL LIMIT 1
+  `).get();
+  if (populated) throw new DomainError("CONFIGURATION_ERROR");
+  database.exec(`
+    ALTER TABLE item_evidence_slots RENAME TO item_evidence_slots_legacy;
+    DROP INDEX item_evidence_slots_item_idx;
+  `);
+  database.exec(SCHEMA_SQL);
+  database.exec(`
+    INSERT INTO item_evidence_slots (
+      demo_instance_id, found_item_id, slot, salt, digest
+    )
+    SELECT demo_instance_id, found_item_id, slot, NULL, NULL
+    FROM item_evidence_slots_legacy
+    WHERE salt IS NULL AND digest IS NULL;
+    DROP TABLE item_evidence_slots_legacy;
+  `);
   assertForeignKeysClean(database);
   const authenticator = makeAuthenticator(
     keyring,
@@ -177,7 +169,7 @@ function migrateV2ToV3(
     UPDATE database_metadata
     SET schema_version = ?, key_check_authenticator = ?
     WHERE singleton_id = 1 AND schema_version = ?
-  `).run(SCHEMA_VERSION, authenticator, PREVIOUS_SCHEMA_VERSION);
+  `).run(SCHEMA_VERSION, authenticator, metadata.schemaVersion);
 }
 
 function migrateDatabase(
@@ -189,11 +181,11 @@ function migrateDatabase(
     const existing = readMetadata(database);
     if (existing) {
       if (existing.schemaVersion === LEGACY_SCHEMA_VERSION) {
-        migrateV1ToV3(database, keyring, existing);
+        migrateV1ToV4(database, keyring, existing);
         return;
       }
-      if (existing.schemaVersion === PREVIOUS_SCHEMA_VERSION) {
-        migrateV2ToV3(database, keyring, existing);
+      if (PRESERVED_SCHEMA_VERSIONS.includes(existing.schemaVersion as 2 | 3)) {
+        migratePreservingToV4(database, keyring, existing);
         return;
       }
       verifyMetadata(existing, keyring, SCHEMA_VERSION);

@@ -1,7 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
+import { createKeyring } from "@/server/security/keyring";
 import { createRepository } from "./repository";
-import { createTestDatabase, type TestDatabase } from "./test-harness";
+import { createTestDatabase, TEST_MASTER_KEY, type TestDatabase } from "./test-harness";
 
 let testDatabase: TestDatabase | undefined;
 
@@ -70,6 +72,8 @@ describe("DemoInstance 与内部库存 ID 全局分离", () => {
       database,
       now: () => Date.UTC(2026, 7, 26, 12),
       randomId: () => sequence++ === 0 ? internalId : `seed-${sequence}-${randomUUID()}`,
+      evidenceDigester: createEvidenceDigester(createKeyring(TEST_MASTER_KEY).getKey("evidence")),
+      randomBytes,
     });
 
     expect(() => colliding.createDemoInstance()).toThrow(

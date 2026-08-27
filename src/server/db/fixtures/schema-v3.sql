@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS item_evidence_slots (
     (salt IS NULL AND digest IS NULL)
     OR
     (
-      typeof(salt) = 'blob' AND length(salt) = 16
+      typeof(salt) = 'blob' AND length(salt) = 32
       AND typeof(digest) = 'blob' AND length(digest) = 32
     )
   )

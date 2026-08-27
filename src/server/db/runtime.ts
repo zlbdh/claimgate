@@ -1,6 +1,8 @@
 import "server-only";
 
 import { isAbsolute } from "node:path";
+import { randomBytes } from "node:crypto";
+import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
 import { createPersistentGlobalRateLimiter } from "@/server/security/global-rate-limit";
 import { createKeyring } from "@/server/security/keyring";
 import { createPersistentRateLimiter } from "@/server/security/rate-limit";
@@ -31,7 +33,11 @@ function createRuntime() {
   return Object.freeze({
     database,
     keyring,
-    repository: createRepository({ database }),
+    repository: createRepository({
+      database,
+      evidenceDigester: createEvidenceDigester(keyring.getKey("evidence")),
+      randomBytes,
+    }),
     limiter: createPersistentRateLimiter({ database }),
     globalLimiter: createPersistentGlobalRateLimiter({ database }),
   });

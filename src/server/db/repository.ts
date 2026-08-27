@@ -20,6 +20,7 @@ import type {
   UpdateFoundItemInput,
   UpdateLostReportInput,
 } from "./repository-types";
+import type { ServerInternalEvidenceSlot } from "@/features/evidence/evidence-service";
 import { consumeActionNonce as consumeNonce } from "./action-nonce-repository";
 import { listAuditEvents as readAuditEvents } from "./audit-repository";
 import {
@@ -40,6 +41,7 @@ import {
   updateLostReport as mutateReport,
 } from "./report-repository";
 import { rejectAsyncCallback, rejectPromise } from "./repository-internal";
+import { listServerInternalEvidenceSlots as readEvidenceSlots } from "./evidence-repository";
 
 export type ClaimGateRepository = {
   createDemoInstance(): DemoInstance;
@@ -47,6 +49,10 @@ export type ClaimGateRepository = {
   deleteExpiredDemoInstances(atMs: number): number;
   listPublicInventory(demoInstanceId: string): PublicInventoryItem[];
   listServerInternalFoundItems(demoInstanceId: string): ServerInternalFoundItem[];
+  listServerInternalEvidenceSlots(
+    demoInstanceId: string,
+    itemId: string,
+  ): ServerInternalEvidenceSlot[];
   createLostReport(input: CreateLostReportInput): LostReportRecord;
   getLostReport(demoInstanceId: string, reportId: string): LostReportRecord;
   listLostReports(demoInstanceId: string): LostReportRecord[];
@@ -66,10 +72,19 @@ export type ClaimGateRepository = {
 };
 
 export function createRepository(options: RepositoryOptions): ClaimGateRepository {
+  if (
+    !options
+    || !options.evidenceDigester
+    || typeof options.evidenceDigester.digest !== "function"
+    || !Object.isFrozen(options.evidenceDigester)
+    || typeof options.randomBytes !== "function"
+  ) throw new DomainError("CONFIGURATION_ERROR");
   const context: RepositoryContext = {
     database: options.database,
     now: options.now ?? Date.now,
     randomId: options.randomId ?? randomUUID,
+    evidenceDigester: options.evidenceDigester,
+    randomBytes: options.randomBytes,
   };
   const buildRepository = (assertActive: () => void): ClaimGateRepository => ({
     createDemoInstance: () => { assertActive(); return createInstance(context); },
@@ -77,6 +92,10 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
     deleteExpiredDemoInstances: (atMs) => { assertActive(); return deleteExpired(context, atMs); },
     listPublicInventory: (instanceId) => { assertActive(); return readPublicInventory(context, instanceId); },
     listServerInternalFoundItems: (instanceId) => { assertActive(); return readInternalItems(context, instanceId); },
+    listServerInternalEvidenceSlots: (instanceId, itemId) => {
+      assertActive();
+      return readEvidenceSlots(context, instanceId, itemId);
+    },
     createLostReport: (input) => { assertActive(); return insertReport(context, input); },
     getLostReport: (instanceId, reportId) => { assertActive(); return readReport(context, instanceId, reportId); },
     listLostReports: (instanceId) => { assertActive(); return readReports(context, instanceId); },

@@ -2,6 +2,7 @@ import type { PublicInventoryItem, DemoInstance, RepositoryContext } from "./rep
 import { NORTHBRIDGE_FOUND_ITEM_SEEDS } from "./seed";
 import { activeInstance, assertNoInternalInventoryIdentity, immediate, parseStringArray, requireInteger } from "./repository-internal";
 import { appendInstanceAudit } from "./audit-repository";
+import { seedPrivateEvidenceForItem } from "./private-evidence-seed";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1_000;
 
@@ -26,10 +27,11 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         public_tags_json, public_description, status, version
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', 1)
     `);
-    for (const item of NORTHBRIDGE_FOUND_ITEM_SEEDS) {
+    for (const [seedIndex, item] of NORTHBRIDGE_FOUND_ITEM_SEEDS.entries()) {
+      const itemId = context.randomId();
       insertItem.run(
         instance.demoInstanceId,
-        context.randomId(),
+        itemId,
         item.category,
         item.foundAt,
         item.area,
@@ -37,6 +39,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         JSON.stringify(item.publicTags),
         item.publicDescription,
       );
+      seedPrivateEvidenceForItem(context, instance.demoInstanceId, itemId, seedIndex);
     }
     appendInstanceAudit(context, instance.demoInstanceId, "DEMO_CREATED", "system");
     assertNoInternalInventoryIdentity(context, instance, "CONFIGURATION_ERROR");

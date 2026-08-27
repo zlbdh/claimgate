@@ -10,23 +10,28 @@ afterEach(() => {
 });
 
 describe("digest-only SQLite 约束", () => {
-  it("evidence slots 只接受成对的 32-byte BLOB", () => {
+  it("evidence slots 只接受 16-byte salt 与 32-byte digest 成对 BLOB", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
     const item = repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
+    database.prepare("DELETE FROM item_evidence_slots").run();
     const insert = database.prepare(`
       INSERT INTO item_evidence_slots (demo_instance_id, found_item_id, slot, salt, digest)
       VALUES (?, ?, 'unique_mark', ?, ?)
     `);
-    const valid = Buffer.alloc(32, 1);
-    expect(() => insert.run(instance.demoInstanceId, item.inventoryItemId, valid, valid)).not.toThrow();
+    const validSalt = Buffer.alloc(16, 1);
+    const validDigest = Buffer.alloc(32, 2);
+    expect(() => insert.run(
+      instance.demoInstanceId, item.inventoryItemId, validSalt, validDigest,
+    )).not.toThrow();
     database.prepare("DELETE FROM item_evidence_slots").run();
     for (const [salt, digest] of [
       ["x".repeat(32), "y".repeat(32)],
-      [Buffer.alloc(31), Buffer.alloc(32)],
-      [Buffer.alloc(32), Buffer.alloc(33)],
-      [Buffer.alloc(32), null],
+      [Buffer.alloc(15), Buffer.alloc(32)],
+      [Buffer.alloc(17), Buffer.alloc(32)],
+      [Buffer.alloc(16), Buffer.alloc(33)],
+      [Buffer.alloc(16), null],
       [null, Buffer.alloc(32)],
     ]) {
       expect(() => insert.run(instance.demoInstanceId, item.inventoryItemId, salt, digest)).toThrow();
