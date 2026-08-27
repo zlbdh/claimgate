@@ -126,6 +126,54 @@ function evidenceTableSql(database: Database.Database): string {
 }
 
 describe("数据库 schema v3 到 v4 evidence rebuild", () => {
+  it("现有 v4 重开时为重复 salt 建索引失败关闭且保持 schema4/data", () => {
+    const directory = mkdtempSync(join(tmpdir(), "claimgate-v4-duplicate-"));
+    directories.push(directory);
+    const databasePath = join(directory, "duplicate.sqlite");
+    const database = initializeDatabase({
+      databasePath,
+      keyring: createKeyring(TEST_MASTER_KEY),
+    });
+    database.exec(`
+      INSERT INTO demo_instances (id, created_at_ms, expires_at_ms, catalog_version)
+      VALUES ('duplicate-v4', 1, 7200001, 1);
+      INSERT INTO found_items (
+        demo_instance_id, id, category, found_at, area, color,
+        public_tags_json, public_description, status, version
+      ) VALUES ('duplicate-v4', 'item-v4', 'earbuds', '2026-08-25', 'library', 'black',
+        '["legacy"]', 'duplicate salt fixture', 'AVAILABLE', 1);
+      DROP INDEX IF EXISTS item_evidence_slots_salt_unique_idx;
+    `);
+    const repeatedSalt = Buffer.alloc(16, 77);
+    const insert = database.prepare(`
+      INSERT INTO item_evidence_slots (demo_instance_id, found_item_id, slot, salt, digest)
+      VALUES ('duplicate-v4', 'item-v4', ?, ?, ?)
+    `);
+    insert.run("unique_mark", repeatedSalt, Buffer.alloc(32, 1));
+    insert.run("identifier_suffix", repeatedSalt, Buffer.alloc(32, 2));
+    database.close();
+
+    let caught: unknown;
+    let unexpected: Database.Database | undefined;
+    try {
+      unexpected = initializeDatabase({
+        databasePath,
+        keyring: createKeyring(TEST_MASTER_KEY),
+      });
+    } catch (error) {
+      caught = error;
+    } finally {
+      unexpected?.close();
+    }
+    expect(caught).toEqual(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
+    const readonly = new Database(databasePath, { readonly: true });
+    expect(readonly.prepare("SELECT schema_version AS version FROM database_metadata").get())
+      .toEqual({ version: 4 });
+    expect(readonly.prepare("SELECT COUNT(*) AS count FROM item_evidence_slots").get())
+      .toEqual({ count: 2 });
+    readonly.close();
+  });
+
   it("固定 v3 fixture blob，避免测试随 current schema 漂移", () => {
     expect(createHash("sha256").update(V3_SCHEMA).digest("hex")).toBe(V3_FIXTURE_SHA256);
     expect(V3_SCHEMA).toContain("length(salt) = 32");

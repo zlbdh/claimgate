@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "probe:native": "tsx scripts/verify-native-webmcp.ts",
     "check:files": "node scripts/check-file-lengths.mjs",
-    "verify": "npm run check:files && npm run lint && npm run typecheck && npm run test && npm run build"
+    "check:evidence-client": "tsx scripts/check-evidence-client.ts",
+    "verify": "npm run check:files && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:evidence-client"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",

@@ -10,6 +10,25 @@ afterEach(() => {
 });
 
 describe("digest-only SQLite 约束", () => {
+  it("v4 用全局 partial unique index 拒绝非空 evidence salt 重复", () => {
+    testDatabase = createTestDatabase();
+    const { database, repository } = testDatabase;
+    const instance = repository.createDemoInstance();
+    const index = database.prepare(`
+      SELECT sql FROM sqlite_master
+      WHERE type = 'index' AND name = 'item_evidence_slots_salt_unique_idx'
+    `).get() as { sql: string } | undefined;
+    expect(index?.sql).toMatch(/CREATE UNIQUE INDEX[\s\S]+ON item_evidence_slots\(salt\)[\s\S]+salt IS NOT NULL/i);
+    const rows = database.prepare(`
+      SELECT found_item_id AS itemId, slot, salt FROM item_evidence_slots
+      WHERE demo_instance_id = ? ORDER BY found_item_id, slot LIMIT 2
+    `).all(instance.demoInstanceId) as Array<{ itemId: string; slot: string; salt: Buffer }>;
+    expect(() => database.prepare(`
+      UPDATE item_evidence_slots SET salt = ?
+      WHERE demo_instance_id = ? AND found_item_id = ? AND slot = ?
+    `).run(rows[0]!.salt, instance.demoInstanceId, rows[1]!.itemId, rows[1]!.slot)).toThrow();
+  });
+
   it("evidence slots 只接受 16-byte salt 与 32-byte digest 成对 BLOB", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;

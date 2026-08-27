@@ -1,18 +1,16 @@
+import "server-only";
+
 import { Buffer } from "node:buffer";
-import type {
-  EvidenceDigester,
-  EvidenceSlot,
-} from "@/features/evidence/evidence-digester";
+import type { EvidenceSlot } from "@/features/evidence/evidence-digester";
 import { EVIDENCE_SLOTS } from "@/features/evidence/evidence-digester";
-import {
-  verifyEvidence,
-  type ServerInternalEvidenceSlot,
-} from "@/features/evidence/evidence-service";
-import { normalizeEvidence } from "@/features/evidence/normalize-evidence";
 import { DomainError } from "@/shared/domain-error";
 import type { RepositoryContext } from "./repository-types";
 
 type FictionalAnswers = Record<EvidenceSlot, string>;
+type EvidenceSaltState = {
+  sources: Set<Buffer>;
+  values: Set<string>;
+};
 
 function configurationError(): never {
   throw new DomainError("CONFIGURATION_ERROR");
@@ -64,6 +62,7 @@ export function seedPrivateEvidenceForItem(
   demoInstanceId: string,
   itemId: string,
   seedIndex: number,
+  saltState: EvidenceSaltState,
 ): void {
   const answers = materializeFictionalAnswers(seedIndex);
   const insert = context.database.prepare(`
@@ -72,55 +71,40 @@ export function seedPrivateEvidenceForItem(
     ) VALUES (?, ?, ?, ?, ?)
   `);
   for (const slot of EVIDENCE_SLOTS) {
-    const generated = context.randomBytes(16);
+    let generated: Buffer;
+    try {
+      generated = context.randomBytes(16);
+    } catch {
+      configurationError();
+    }
     if (!Buffer.isBuffer(generated) || generated.length !== 16) configurationError();
+    if (saltState.sources.has(generated)) configurationError();
+    saltState.sources.add(generated);
     const salt = Buffer.from(generated);
-    const digest = context.evidenceDigester.digest({
-      demoInstanceId,
-      itemId,
-      slot,
-      salt,
-      value: answers[slot],
-    });
+    const saltKey = salt.toString("hex");
+    if (saltState.values.has(saltKey)) configurationError();
+    const existing = context.database.prepare(`
+      SELECT 1 FROM item_evidence_slots WHERE salt = ? LIMIT 1
+    `).get(salt);
+    if (existing) configurationError();
+    saltState.values.add(saltKey);
+    let digest: Buffer;
+    try {
+      digest = context.evidenceDigester.digest({
+        demoInstanceId,
+        itemId,
+        slot,
+        salt: Buffer.from(salt),
+        value: answers[slot],
+      });
+    } catch {
+      configurationError();
+    }
     if (!Buffer.isBuffer(digest) || digest.length !== 32) configurationError();
-    insert.run(demoInstanceId, itemId, slot, salt, Buffer.from(digest));
+    try {
+      insert.run(demoInstanceId, itemId, slot, salt, Buffer.from(digest));
+    } catch {
+      configurationError();
+    }
   }
-}
-
-export function verifyFictionalSeedForTest(input: {
-  seedIndex: number;
-  digester: EvidenceDigester;
-  demoInstanceId: string;
-  itemId: string;
-  storedSlots: readonly ServerInternalEvidenceSlot[];
-}) {
-  const answers = materializeFictionalAnswers(input.seedIndex);
-  return verifyEvidence({
-    ...input,
-    answers,
-    priorFailedAttempts: 0,
-  });
-}
-
-export function privateEvidenceSeedsAreDistinctForTest(): boolean {
-  const values = Array.from({ length: 7 }, (_, index) => materializeFictionalAnswers(index))
-    .flatMap((answers) => EVIDENCE_SLOTS.map((slot) => normalizeEvidence(answers[slot])));
-  return new Set(values).size === 21;
-}
-
-export function privateEvidenceAppearsInForTest(value: unknown): boolean {
-  const privateValues = Array.from({ length: 7 }, (_, index) => materializeFictionalAnswers(index))
-    .flatMap((answers) => EVIDENCE_SLOTS.flatMap((slot) => [
-      answers[slot],
-      normalizeEvidence(answers[slot]),
-    ]));
-  const seen = new Set<object>();
-  const inspect = (entry: unknown): boolean => {
-    if (typeof entry === "string") return privateValues.some((secret) => entry.includes(secret));
-    if (Buffer.isBuffer(entry)) return inspect(entry.toString("utf8"));
-    if (!entry || typeof entry !== "object" || seen.has(entry)) return false;
-    seen.add(entry);
-    return Reflect.ownKeys(entry).some((key) => inspect(key) || inspect(Reflect.get(entry, key)));
-  };
-  return inspect(value);
 }

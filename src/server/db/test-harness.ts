@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { createKeyring } from "@/server/security/keyring";
 import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
+import type { EvidenceDigester } from "@/features/evidence/evidence-digester";
 import { initializeDatabase } from "./migrate";
 import { createRepository, type ClaimGateRepository } from "./repository";
 
@@ -19,7 +20,13 @@ export type TestDatabase = {
   close(): void;
 };
 
-export function createTestDatabase(initialNow = Date.UTC(2026, 7, 26, 12)): TestDatabase {
+export function createTestDatabase(
+  initialNow = Date.UTC(2026, 7, 26, 12),
+  options: {
+    evidenceDigester?: EvidenceDigester;
+    randomBytes?: (size: number) => Buffer;
+  } = {},
+): TestDatabase {
   const directory = mkdtempSync(join(tmpdir(), "claimgate-db-"));
   const databasePath = join(directory, "test.sqlite");
   const database = initializeDatabase({
@@ -34,12 +41,12 @@ export function createTestDatabase(initialNow = Date.UTC(2026, 7, 26, 12)): Test
     database,
     now: () => currentNow,
     randomId: () => `test-${++sequence}-${crypto.randomUUID()}`,
-    evidenceDigester: createEvidenceDigester(keyring.getKey("evidence")),
-    randomBytes: (size) => {
+    evidenceDigester: options.evidenceDigester ?? createEvidenceDigester(keyring.getKey("evidence")),
+    randomBytes: options.randomBytes ?? ((size) => {
       const value = Buffer.alloc(size);
       value.writeUInt32BE(++saltSequence, size - 4);
       return value;
-    },
+    }),
   });
 
   return {

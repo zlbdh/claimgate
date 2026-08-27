@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS item_evidence_slots (
 
 CREATE INDEX IF NOT EXISTS item_evidence_slots_item_idx
   ON item_evidence_slots(demo_instance_id, found_item_id);
+CREATE UNIQUE INDEX IF NOT EXISTS item_evidence_slots_salt_unique_idx
+  ON item_evidence_slots(salt)
+  WHERE salt IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS lost_reports (
   demo_instance_id TEXT NOT NULL,

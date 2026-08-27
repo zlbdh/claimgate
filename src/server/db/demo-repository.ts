@@ -27,6 +27,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         public_tags_json, public_description, status, version
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', 1)
     `);
+    const saltState = { sources: new Set<Buffer>(), values: new Set<string>() };
     for (const [seedIndex, item] of NORTHBRIDGE_FOUND_ITEM_SEEDS.entries()) {
       const itemId = context.randomId();
       insertItem.run(
@@ -39,7 +40,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         JSON.stringify(item.publicTags),
         item.publicDescription,
       );
-      seedPrivateEvidenceForItem(context, instance.demoInstanceId, itemId, seedIndex);
+      seedPrivateEvidenceForItem(context, instance.demoInstanceId, itemId, seedIndex, saltState);
     }
     appendInstanceAudit(context, instance.demoInstanceId, "DEMO_CREATED", "system");
     assertNoInternalInventoryIdentity(context, instance, "CONFIGURATION_ERROR");
