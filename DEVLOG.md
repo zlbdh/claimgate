@@ -76,3 +76,12 @@
 - **安全边界**：工具运行时再次 strict parse；嵌套 JSON Schema 全部拒绝额外字段；单次工具结果按实际 JSON 序列化不超过 1,500 字符；HTTP 响应最多流式读取 65,536 bytes，超限取消；公开描述、时间线和报告列表只返回最小白名单摘要。
 - **踩坑**：仅在客户端过滤 50 条完整报告会使合法 UTF-8 响应超过读取上限；修为服务端 canonical `status/limit` 过滤并只返回摘要。候选重新查询失败若不清旧结果，会让 `stage_claim_candidate` 错误滞留；失败路径现在 generation-safe 清理并按状态刷新。
 - **验证**：提交 `4ffc6dca8f2362d7e2cc23c58802e9a9e85d3fb1`；完整 `verify` 连续两轮通过（103 files / 921 tests）；生产 Playwright 4/4；Chrome 151 原生 13 阶段全部九工具真实执行、annotations 精确、Home 最终 `[]`；无配置生产接口返回 93-byte 规范 500 且无泄漏；服务端与 WebMCP 独立复审均为 PASS。
+
+## 2026-08-27 [Task 10：全系统安全回归与秘密门禁]
+
+- **记录**：2026-08-27 20:39 by Codex — 记录贯穿式 canary、构建产物门禁和原生清理策略，防止部署/演示阶段把局部安全测试误当整体验收。
+- **改动**：新增真实 evidence→approve→issue→handoff 秘密 canary 流；补齐 reject/unlock 物理路由、过期会话、严格 JSON 流、12 个隔离 runtime env 子进程；安全头显式 `Permissions-Policy: tools=(self)`，生产 CSP 保持 nonce + strict-dynamic。
+- **构建门禁**：`verify` 在 build 后串行执行 evidence、pickup 和 sensitive-surface 三道扫描；公开 static/public 禁止私密证据、server-only marker、source map 和 sourceMappingURL；standalone 服务端 map 禁止 `sourcesContent`。
+- **踩坑**：并行 build/native 会让 `.next/standalone` 在清理窗口出现 EBUSY/缺文件假红；最终门必须独占并串行。原生 cleanup 不能因 `browser.close()` 失败跳过 server/temp 清理；现在两级终止、确认退出并限制删除到系统 Temp。
+- **门禁决策**：仅按工具名包含 `issue/reissue/handoff` 会漏同义人工写工具；改为精确九工具 allowlist，并扫描 WebMCP 源码禁止 issue/reissue/evidence/approve/reject/unlock/handoff/publish/archive/switch-role 十类人工写路径。
+- **验证**：提交 `0480fbb`；完整 `verify` 连续两轮通过（110 files / 971 tests）；生产 E2E 7/7；Chrome 151 原生九工具、runtime evidence/pickup transport canary 与最终 teardown 通过；无配置接口仍为 93-byte generic 500；三位独立复审无剩余 Critical/Important。
