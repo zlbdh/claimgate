@@ -53,6 +53,11 @@ export const AUTHENTICATED_ROUTE_REGISTRY = Object.freeze({
     allowedRoles: claimantRole, requiresOneTime: false,
     ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.match_find,
   }),
+  "api.claims.stage": Object.freeze({
+    method: "POST", path: "/api/claims", action: "claim_stage",
+    allowedRoles: claimantRole, requiresOneTime: false,
+    ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_stage,
+  }),
 } satisfies Record<string, AuthenticatedRouteDefinition>);
 
 export type AuthenticatedRouteKey = keyof typeof AUTHENTICATED_ROUTE_REGISTRY;

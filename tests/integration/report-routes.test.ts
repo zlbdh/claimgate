@@ -141,6 +141,7 @@ describe("report Route Handlers", () => {
     ));
     expect(matched.status).toBe(200);
     const matchJson = await matched.json();
+    expect(matchJson.reportVersion).toBe(3);
     expect(matchJson.candidates.length).toBeLessThanOrEqual(2);
     expect(matchJson.candidates[0]?.candidateHandle).toMatch(/^cgch1\./);
 
@@ -289,9 +290,9 @@ describe("report Route Handlers", () => {
       `/api/reports/${created.json.reportId}/matches`, value.cookie,
     ));
     const serialized = await response.text();
-    const internalIds = testDatabase!.repository.listServerInternalFoundItems(value.instance.demoInstanceId)
-      .map((item) => item.inventoryItemId);
-    for (const forbidden of [...internalIds, "inventoryItemId", "candidateId", "foundAt", "score", "publicTags", "publicDescription", "catalogVersion", "reportVersion"]) {
+    const internalIds = testDatabase!.repository.listServerInternalFoundItems(value.instance.demoInstanceId).map((item) => item.inventoryItemId);
+    expect(JSON.parse(serialized).reportVersion).toBe(2);
+    for (const forbidden of [...internalIds, "inventoryItemId", "candidateId", "foundAt", "score", "publicTags", "publicDescription", "catalogVersion"]) {
       expect(serialized).not.toContain(forbidden);
     }
   });

@@ -77,6 +77,11 @@ describe("冻结的完整限流策略矩阵", () => {
         allowedRoles: ["CLAIMANT"], requiresOneTime: false,
         ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.match_find,
       },
+      "api.claims.stage": {
+        method: "POST", path: "/api/claims", action: "claim_stage",
+        allowedRoles: ["CLAIMANT"], requiresOneTime: false,
+        ratePolicy: INSTANCE_RATE_LIMIT_POLICIES.claim_stage,
+      },
     });
     expect(Object.isFrozen(AUTHENTICATED_ROUTE_REGISTRY)).toBe(true);
     const route = AUTHENTICATED_ROUTE_REGISTRY["api.demo.switch-role"];

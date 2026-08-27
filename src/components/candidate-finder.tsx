@@ -4,6 +4,7 @@ import { useState } from "react";
 import { z } from "zod";
 import type { BrowserCandidateDto } from "@/features/reports/report-types";
 import { CandidateCard } from "./candidate-card";
+import { useWebMcpCandidatePublisher } from "./webmcp-provider";
 
 const candidateSchema = z.strictObject({
   candidateHandle: z.string().regex(/^cgch1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.[A-Za-z0-9_-]{43}$/),
@@ -16,21 +17,24 @@ const candidateSchema = z.strictObject({
   expiresAt: z.number().int().safe().positive(),
 });
 const responseSchema = z.strictObject({
+  reportVersion: z.number().int().safe().positive(),
   candidates: z.array(candidateSchema).max(3),
   message: z.string().min(1).max(256),
 });
 
 export interface CandidateFinderProps {
   reportId: string;
+  reportVersion?: number;
   fetcher?: typeof fetch;
   className?: string;
 }
 
-export function CandidateFinder({ reportId, fetcher = fetch, className = "" }: CandidateFinderProps) {
+export function CandidateFinder({ reportId, reportVersion, fetcher = fetch, className = "" }: CandidateFinderProps) {
   const [candidates, setCandidates] = useState<BrowserCandidateDto[]>([]);
   const [message, setMessage] = useState("Candidates are loaded only when you ask.");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const publishCandidates = useWebMcpCandidatePublisher();
 
   async function findCandidates() {
     setBusy(true);
@@ -47,8 +51,10 @@ export function CandidateFinder({ reportId, fetcher = fetch, className = "" }: C
       if (!parsed.success) throw new Error("invalid response");
       setCandidates(parsed.data.candidates);
       setMessage(parsed.data.message);
+      publishCandidates(reportId, parsed.data.reportVersion, parsed.data.candidates);
     } catch {
       setCandidates([]);
+      if (reportVersion !== undefined) publishCandidates(reportId, reportVersion, []);
       setError("Candidates could not be loaded. Please wait and try again.");
     } finally {
       setBusy(false);

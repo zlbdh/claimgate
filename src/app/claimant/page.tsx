@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { ReportCreateForm } from "@/components/report-create-form";
 import { ReportIndex } from "@/components/report-index";
 import { PrivacyBoundary } from "@/components/privacy-boundary";
+import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createReportService } from "@/features/reports/report-service";
 import { readClaimantPageSession, mintReportCsrf } from "@/server/http/claimant-page-session";
@@ -35,7 +36,12 @@ export default async function ClaimantWorkspacePage() {
   });
 
   return (
-    <main className="report-workspace">
+    <>
+      <WebMcpPageScope
+        scope={{ role: "CLAIMANT", page: "WORKSPACE" }}
+        createCsrfToken={csrfToken}
+      />
+      <main className="report-workspace">
       <header className="workspace-header">
         <div>
           <p className="workspace-kicker">Claimant file · Northbridge</p>
@@ -62,6 +68,7 @@ export default async function ClaimantWorkspacePage() {
           </section>
         </aside>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

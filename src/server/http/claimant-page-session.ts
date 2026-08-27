@@ -47,3 +47,25 @@ export function mintReportCsrf(input: {
     expiresAt: Math.min(input.session.expiresAt, input.runtime.now() + 10 * 60_000),
   });
 }
+
+export function mintClaimStageCsrf(input: {
+  runtime: HttpRuntime;
+  session: DemoSession;
+  reportId: string;
+}): string {
+  const route = getAuthenticatedRoute("api.claims.stage");
+  if (route.action !== "claim_stage" || route.requiresOneTime) {
+    throw new DomainError("CONFIGURATION_ERROR");
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(input.reportId)) {
+    throw new DomainError("VALIDATION_FAILED");
+  }
+  return input.runtime.csrf.mint({
+    sessionId: input.session.sessionId,
+    method: "POST",
+    routeId: `claims/${input.reportId}`,
+    action: "claim_stage",
+    oneTime: false,
+    expiresAt: Math.min(input.session.expiresAt, input.runtime.now() + 10 * 60_000),
+  });
+}

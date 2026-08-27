@@ -30,6 +30,8 @@ export function resolvePlaywrightTarget(environment: Environment): PlaywrightTar
     return { baseURL: parsed.toString().replace(/\/$/, "") };
   }
 
+  const databasePath = environment.CLAIMGATE_E2E_DATABASE_PATH
+    ?? join(tmpdir(), `claimgate-e2e-${randomUUID()}.sqlite`);
   return {
     baseURL: LOCAL_URL,
     webServer: {
@@ -38,7 +40,7 @@ export function resolvePlaywrightTarget(environment: Environment): PlaywrightTar
         CLAIMGATE_HMAC_KEY: Buffer.alloc(32, 71).toString("base64"),
         CLAIMGATE_SESSION_KEY: Buffer.alloc(32, 72).toString("base64"),
         CLAIMGATE_CSRF_KEY: Buffer.alloc(32, 73).toString("base64"),
-        CLAIMGATE_DATABASE_PATH: join(tmpdir(), `claimgate-e2e-${randomUUID()}.sqlite`),
+        CLAIMGATE_DATABASE_PATH: databasePath,
         CLAIMGATE_APP_ORIGIN: LOCAL_URL,
       },
       reuseExistingServer: !environment.CI,

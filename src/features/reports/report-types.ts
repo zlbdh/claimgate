@@ -34,3 +34,7 @@ export type CandidateListDto = Readonly<{
   candidates: readonly BrowserCandidateDto[];
   message: string;
 }>;
+
+export type CandidateSearchDto = CandidateListDto & Readonly<{
+  reportVersion: number;
+}>;

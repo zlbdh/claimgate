@@ -5,9 +5,10 @@ import { connection } from "next/server";
 import { CandidateFinder } from "@/components/candidate-finder";
 import { PrivacyBoundary } from "@/components/privacy-boundary";
 import { ReportUpdateForm } from "@/components/report-update-form";
+import { WebMcpPageScope } from "@/components/webmcp-provider";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createReportService } from "@/features/reports/report-service";
-import { mintReportCsrf, readClaimantPageSession } from "@/server/http/claimant-page-session";
+import { mintClaimStageCsrf, mintReportCsrf, readClaimantPageSession } from "@/server/http/claimant-page-session";
 import { getHttpRuntime } from "@/server/http/runtime";
 
 export const dynamic = "force-dynamic";
@@ -42,9 +43,23 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ r
   const publishCsrf = report.status === "DRAFT"
     ? mintReportCsrf({ runtime, session, routeKey: "api.reports.publish", path: `/api/reports/${reportId}/publish`, oneTime: true })
     : undefined;
+  const stageCsrf = report.status === "PUBLISHED"
+    ? mintClaimStageCsrf({ runtime, session, reportId })
+    : undefined;
 
   return (
-    <main className="report-workspace report-detail">
+    <>
+      <WebMcpPageScope
+        scope={{
+          role: "CLAIMANT",
+          page: "REPORT",
+          reportId,
+          reportStatus: report.status,
+          reportVersion: report.version,
+        }}
+        stageCsrfToken={stageCsrf}
+      />
+      <main className="report-workspace report-detail">
       <Link className="workspace-back" href="/claimant">← All reports</Link>
       <header className="workspace-header">
         <div>
@@ -81,7 +96,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ r
 
       {report.status === "PUBLISHED" && archiveCsrf && (
         <>
-          <CandidateFinder reportId={reportId} />
+          <CandidateFinder reportId={reportId} reportVersion={report.version} />
           <form className="archive-published" action={archivePath} method="post">
             <input type="hidden" name="csrfToken" value={archiveCsrf} />
             <input type="hidden" name="expectedVersion" value={report.version} />
@@ -94,6 +109,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ r
       {report.status !== "DRAFT" && report.status !== "PUBLISHED" && (
         <p className="workspace-state" role="status">This report is closed and remains available as a read-only record.</p>
       )}
-    </main>
+      </main>
+    </>
   );
 }

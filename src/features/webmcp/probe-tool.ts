@@ -15,6 +15,7 @@ export const compatibilityProbeTool: WebMCPTool = {
   },
   annotations: {
     readOnlyHint: true,
+    untrustedContentHint: false,
   },
   async execute(input) {
     return {

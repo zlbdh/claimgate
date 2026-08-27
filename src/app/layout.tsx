@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
+import { WebMcpProvider } from "@/components/webmcp-provider";
 
 import "./globals.css";
 import "./demo-session.css";
@@ -20,7 +21,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <div className="site-shell">
+        <WebMcpProvider>
+          <div className="site-shell">
           <header className="masthead" aria-label="ClaimGate">
             <Link className="wordmark" href="/">
               <span className="wordmark-mark" aria-hidden="true">
@@ -39,7 +41,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <span>People verify.</span>
             <span>Secrets stay private.</span>
           </footer>
-        </div>
+          </div>
+        </WebMcpProvider>
       </body>
     </html>
   );

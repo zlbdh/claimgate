@@ -48,6 +48,7 @@ describe("Claimant report workspace components", () => {
 
   it("spends match quota only after the deliberate Find candidates control", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => Response.json({
+      reportVersion: 2,
       candidates: [candidate],
       message: "1 privacy-safe candidate found.",
     }));

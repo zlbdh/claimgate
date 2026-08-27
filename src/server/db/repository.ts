@@ -28,7 +28,7 @@ import {
   getDemoInstance as readInstance,
   listPublicInventory as readPublicInventory,
 } from "./demo-repository";
-import { createClaim as insertClaim, updateClaim as mutateClaim } from "./claim-repository";
+import { createClaim as insertClaim, getClaim as readClaim, updateClaim as mutateClaim } from "./claim-repository";
 import { listServerInternalFoundItems as readInternalItems, updateFoundItem as mutateItem } from "./inventory-repository";
 import { runIdempotent as executeIdempotent } from "./idempotency-repository";
 import {
@@ -55,6 +55,7 @@ export type ClaimGateRepository = {
   archiveLostReport(input: TransitionLostReportInput): LostReportRecord;
   updateFoundItem(input: UpdateFoundItemInput): ServerInternalFoundItemMutationResult;
   createClaim(input: CreateClaimInput): ClaimRecord;
+  getClaim(demoInstanceId: string, claimId: string): ClaimRecord;
   updateClaim(input: UpdateClaimInput): ClaimRecord;
   listAuditEvents(demoInstanceId: string): AuditEvent[];
   runIdempotent(request: IdempotencyRequest, mutation: () => IdempotencyResult): IdempotencyResult;
@@ -84,6 +85,7 @@ export function createRepository(options: RepositoryOptions): ClaimGateRepositor
     archiveLostReport: (input) => { assertActive(); return archiveReport(context, input); },
     updateFoundItem: (input) => { assertActive(); return mutateItem(context, input); },
     createClaim: (input) => { assertActive(); return insertClaim(context, input); },
+    getClaim: (instanceId, claimId) => { assertActive(); return readClaim(context, instanceId, claimId); },
     updateClaim: (input) => { assertActive(); return mutateClaim(context, input); },
     listAuditEvents: (instanceId) => {
       assertActive();

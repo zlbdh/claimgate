@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 import { resolvePlaywrightTarget } from "./scripts/playwright-target";
 
 const target = resolvePlaywrightTarget(process.env);
+if (target.webServer) {
+  process.env.CLAIMGATE_E2E_DATABASE_PATH = target.webServer.env.CLAIMGATE_DATABASE_PATH;
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",

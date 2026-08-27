@@ -35,7 +35,7 @@ const CLAIM_SELECT = `
   FROM claims
 `;
 
-function getClaim(context: RepositoryContext, demoInstanceId: string, claimId: string): ClaimRecord {
+export function getClaim(context: RepositoryContext, demoInstanceId: string, claimId: string): ClaimRecord {
   activeInstance(context, demoInstanceId);
   const row = context.database.prepare(`${CLAIM_SELECT} WHERE demo_instance_id = ? AND id = ?`)
     .get(demoInstanceId, claimId) as ClaimRow | undefined;

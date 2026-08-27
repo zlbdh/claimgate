@@ -119,7 +119,8 @@ describe("ReportService business boundary", () => {
     );
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(hiddenId);
-    for (const forbidden of ["inventoryItemId", "candidateId", "foundAt", "score", "publicTags", "publicDescription", "catalogVersion", "reportVersion"]) {
+    expect(result.reportVersion).toBe(2);
+    for (const forbidden of ["inventoryItemId", "candidateId", "foundAt", "score", "publicTags", "publicDescription", "catalogVersion"]) {
       expect(serialized).not.toContain(forbidden);
     }
   });
@@ -144,6 +145,7 @@ describe("ReportService business boundary", () => {
     const draft = service.createDraft(context, { ...draftInput(), category: "wallet" });
     service.publish(context, draft.reportId, 1);
     expect(service.findCandidates(context, draft.reportId, 3)).toEqual({
+      reportVersion: 2,
       candidates: [],
       message: "No close candidates yet. Refine the public time window, area, color, or descriptors.",
     });

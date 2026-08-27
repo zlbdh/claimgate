@@ -125,6 +125,21 @@ export function completeAuthenticatedRequest(input: {
   return context;
 }
 
+export function bindClaimStagePreflight(
+  preflight: AuthenticatedRequestPreflight,
+  reportId: string,
+): AuthenticatedRequestPreflight {
+  if (
+    !issuedPreflights.has(preflight)
+    || preflight.routeKey !== "api.claims.stage"
+    || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(reportId)
+  ) throw new DomainError("CONFIGURATION_ERROR");
+  issuedPreflights.delete(preflight);
+  const bound = Object.freeze({ ...preflight, csrfRouteId: `claims/${reportId}` });
+  issuedPreflights.add(bound);
+  return bound;
+}
+
 export function createAuthenticatedRequestContext(input: {
   request: Request;
   appOrigin: AppOrigin;

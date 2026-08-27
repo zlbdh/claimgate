@@ -22,7 +22,7 @@ import {
 import { createReportFingerprint, updateReportFingerprint } from "./report-fingerprint";
 import type {
   BrowserCandidateDto,
-  CandidateListDto,
+  CandidateSearchDto,
   PublicReportDto,
   ReportAckDto,
 } from "./report-types";
@@ -206,7 +206,7 @@ export function createReportService(dependencies: {
       return toPublicReport(requireOwned(dependencies.repository, context, reportId));
     },
 
-    findCandidates(context: ReportActorContext, reportId: string, limit = 3): CandidateListDto {
+    findCandidates(context: ReportActorContext, reportId: string, limit = 3): CandidateSearchDto {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 3) throw new DomainError("VALIDATION_FAILED");
       const current = snapshot(context, reportId);
       const nowMs = now();
@@ -232,6 +232,7 @@ export function createReportService(dependencies: {
         expiresAt: Number(handles[index]!.split(".")[2]),
       }));
       return Object.freeze({
+        reportVersion: current.report.version,
         candidates: Object.freeze(candidates),
         message: candidates.length === 0
           ? "No close candidates yet. Refine the public time window, area, color, or descriptors."
