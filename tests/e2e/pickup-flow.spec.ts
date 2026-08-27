@@ -92,7 +92,7 @@ async function reachApproved(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Switch to Claimant role" }).click();
   await page.goto(`/claimant/claims/${claimId}`);
-  return claimId;
+  return { claimId, reportId };
 }
 
 test("approve, issue, reissue and atomic handoff keep the credential client-only", async ({ page, context }) => {
@@ -103,7 +103,7 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.clock.install();
   await installModelContext(page);
-  const claimId = await reachApproved(page);
+  const { claimId, reportId } = await reachApproved(page);
   await expect.poll(() => toolNames(page)).toEqual(["get_claim_status", "get_pickup_instructions"]);
   await expect(page.getByRole("button", { name: "Generate pickup pass" })).toBeVisible();
   const issueResponse = page.waitForResponse((response) =>
@@ -178,14 +178,41 @@ test("approve, issue, reissue and atomic handoff keep the credential client-only
   await second.goto(`/staff/claims/${claimId}`);
   await credentialInput.fill(reissued.token);
   await second.getByLabel("One-time pickup credential").fill(reissued.token);
+  const firstCompletion = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/staff/claims/${claimId}/handoff`));
+  const secondCompletion = second.waitForResponse((response) =>
+    response.url().endsWith(`/api/staff/claims/${claimId}/handoff`));
   await Promise.all([
     page.getByRole("button", { name: "Confirm atomic handoff" }).click(),
     second.getByRole("button", { name: "Confirm atomic handoff" }).click(),
   ]);
+  const completionResponses = await Promise.all([firstCompletion, secondCompletion]);
+  expect(completionResponses.map((response) => response.status())).toEqual([200, 200]);
+  const completionPayloads = await Promise.all(
+    completionResponses.map((response) => response.json()),
+  ) as Array<{ completion: string }>;
+  expect(new Set(completionPayloads.map(({ completion }) => completion))).toEqual(
+    new Set(["COLLECTED", "ALREADY_COLLECTED"]),
+  );
   await expect(page.locator(".status-stamp")).toContainText("COLLECTED");
   await expect.poll(() => toolNames(page)).toEqual(["get_claim_status"]);
   await expect(second.locator(".status-stamp")).toContainText("COLLECTED");
   await expect(page.getByText(/item returned and report resolved/i)).toBeVisible();
+  await expect(page.getByLabel("One-time pickup credential")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Approve|Reject|Unlock|Confirm atomic handoff/ })).toHaveCount(0);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Switch to Claimant role" }).click();
+  await page.goto(`/claimant/claims/${claimId}`);
+  await expect(page.locator(".status-stamp")).toContainText("COLLECTED");
+  await expect.poll(() => toolNames(page)).toEqual(["get_claim_status"]);
+  await expect(page.getByText(/pickup is complete/i)).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Generate pickup pass|Reissue pickup pass/ })).toHaveCount(0);
+  await page.goto(`/claimant/reports/${reportId}`);
+  await expect(page.locator(".status-stamp")).toContainText("RESOLVED");
+  await expect(page.getByRole("status")).toContainText(/read-only record/i);
+  await expect(page.getByRole("button", { name: /Save changes|Publish report|Archive/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(pageErrors).toEqual([]);
   expect(consoleMessages.filter((entry) => /hydration|uncaught|console error/i.test(entry))).toEqual([]);

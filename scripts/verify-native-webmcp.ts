@@ -13,6 +13,14 @@ import {
   freeNativePort,
   requireSingleTransportOccurrence,
 } from "./native-secret-canary";
+import {
+  NATIVE_TOOL_NAMES,
+  createNativeAcceptanceDraft,
+  finalizeNativeAcceptance,
+  nativeRunIdentity,
+  phaseEvidence,
+  type NativePhaseEvidence,
+} from "./native-acceptance-contract";
 type NativeTool = Readonly<{
   name: string;
   description: string;
@@ -23,7 +31,7 @@ type NativeContext = Readonly<{
   getTools(): Promise<NativeTool[]>;
   executeTool(tool: NativeTool, inputJson: string): Promise<string | null>;
 }>;
-const phases: Array<{ phase: string; tools: string[]; schemas: string[] }> = [];
+const phases: NativePhaseEvidence[] = [];
 const executedTools = new Set<string>();
 const WRITES = new Set(["create_lost_report_draft", "update_lost_report_draft", "stage_claim_candidate"]);
 const UNTRUSTED = new Set(["list_my_reports", "find_candidate_matches", "list_pending_claims", "get_claim_review_summary"]);
@@ -74,7 +82,11 @@ async function expectTools(page: Page, phase: string, expected: string[]): Promi
       throw new Error(`Native tool annotations were incorrect for ${tool.name}`);
     }
   }
-  phases.push({ phase, tools: tools.map((tool) => tool.name), schemas: tools.map((tool) => `${tool.name}:JSON-string`) });
+  phases.push(phaseEvidence(
+    phase,
+    tools.map((tool) => tool.name),
+    tools.map((tool) => `${tool.name}:JSON-string`),
+  ));
   return tools;
 }
 
@@ -96,6 +108,8 @@ async function execute(page: Page, name: string, input: unknown): Promise<{ raw:
 }
 
 async function main() {
+  const startedAtMs = Date.now();
+  const identity = nativeRunIdentity();
   const directory = mkdtempSync(join(tmpdir(), "claimgate-native-"));
   const databasePath = join(directory, "native.sqlite");
   const port = await freeNativePort();
@@ -242,6 +256,8 @@ async function main() {
     }));
 
     const database = new Database(databasePath, { readonly: true });
+    const instanceRow = database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get() as { count: number };
+    const instanceCount = instanceRow.count;
     const internalIds = (database.prepare("SELECT id FROM found_items").all() as Array<{ id: string }>).map((row) => row.id);
     database.close();
     const inspected = JSON.stringify({ rawResults, html, activity, clientLogs, serverLogs, evidenceBrowserState, browserState });
@@ -256,42 +272,20 @@ async function main() {
     if (publishedTools.map((tool) => tool.name).join(",") !== "find_candidate_matches,list_my_reports") {
       throw new Error("Native lexical tool ordering changed");
     }
-    const expectedExecuted = [
-      "create_lost_report_draft", "find_candidate_matches", "get_claim_review_summary",
-      "get_claim_status", "get_pickup_instructions", "list_my_reports",
-      "list_pending_claims", "stage_claim_candidate", "update_lost_report_draft",
-    ];
-    if (JSON.stringify([...executedTools].sort()) !== JSON.stringify(expectedExecuted)) {
+    if (JSON.stringify([...executedTools].sort()) !== JSON.stringify([...NATIVE_TOOL_NAMES].sort())) {
       throw new Error(`Native nine-tool execution incomplete: ${JSON.stringify([...executedTools].sort())}`);
     }
-
-    console.log(JSON.stringify({
-      checkedAt: new Date().toISOString(),
-      browserVersion: browser.version(),
-      flag: "--enable-features=WebMCPTesting",
-      signatures: {
-        registerTool: "registerTool(tool, { signal }) -> Promise<void>",
-        getTools: "getTools() -> Promise<descriptor[]>; inputSchema JSON string",
-        executeTool: "executeTool(descriptor, JSON.stringify(input)) -> Promise<string|null>",
-      },
-      phases,
-      executedTools: [...executedTools].sort(),
-      writes: {
-        createNonNullJsonString: true,
-        updateNonNullJsonString: true,
-        stageNonNullJsonString: true,
-      },
-      navigation: "same-document Next navigation reached both nextPath values",
-      teardown: "left Claimant pages; native getTools returned []",
-      isolation: "fresh temporary SQLite database and fresh demo instance; deleted after run",
-      scans: "tool/HTML/activity/log/storage/history surfaces excluded internal IDs and runtime evidence/pickup canaries",
-    }, null, 2));
+    const executed = [...executedTools].sort() as Array<(typeof NATIVE_TOOL_NAMES)[number]>;
+    return { startedAtMs, draft: createNativeAcceptanceDraft({
+      identity, startedAtMs, browserVersion: browser.version(), phases,
+      executedTools: executed, instanceCount,
+    }) };
   } finally {
     await cleanupNativeRun(browser, server, directory);
   }
 }
 
-void main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+void main().then(({ draft, startedAtMs }) => {
+  const result = finalizeNativeAcceptance(draft, startedAtMs);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+}).catch((error: unknown) => { console.error(error); process.exitCode = 1; });

@@ -79,6 +79,12 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
             rejectCsrfToken={rejectToken}
             unlockCsrfToken={unlockToken}
           />
+          {review.claim.status === "REJECTED"
+            && review.claim.rejectionReason === "ITEM_HELD_BY_ANOTHER_CLAIM" && (
+            <p className="workspace-state" role="status">
+              Another claim secured this item. This competing claim was rejected and its report remains open.
+            </p>
+          )}
           {review.claim.status === "APPROVED" && (
             <p className="workspace-state">Waiting for the Claimant to generate a pickup pass.</p>
           )}

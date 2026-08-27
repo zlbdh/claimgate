@@ -43,7 +43,7 @@ export async function stopNativeServer(server: ChildProcess, timeoutMs = 3_000):
   }
 }
 
-function removeNativeDirectory(directory: string): void {
+export function removeNativeTemporaryDirectory(directory: string): void {
   const target = resolve(directory);
   const root = resolve(tmpdir());
   if (target === root || !`${target}${sep}`.startsWith(`${root}${sep}`)) {
@@ -61,7 +61,7 @@ export async function cleanupNativeRun(
   const errors: unknown[] = [];
   try { await browser?.close(); } catch (error) { errors.push(error); }
   try { await stopNativeServer(server, timeoutMs); } catch (error) { errors.push(error); }
-  try { removeNativeDirectory(directory); } catch (error) { errors.push(error); }
+  try { removeNativeTemporaryDirectory(directory); } catch (error) { errors.push(error); }
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) throw new AggregateError(errors, "Native cleanup failed");
 }

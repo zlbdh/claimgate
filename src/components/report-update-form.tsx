@@ -72,8 +72,18 @@ export function ReportUpdateForm({
         csrfToken,
         body,
       });
-      const result = await response.json() as { nextPath?: unknown };
-      if (!response.ok || result.nextPath !== `/claimant/reports/${report.reportId}`) {
+      const result = await response.json() as {
+        nextPath?: unknown;
+        error?: { code?: unknown };
+      };
+      if (!response.ok) {
+        if (response.status === 409 && result.error?.code === "STATE_CHANGED") {
+          setError("STATE_CHANGED — This draft changed in another tab. Reload before trying again.");
+          return;
+        }
+        throw new Error("request denied");
+      }
+      if (result.nextPath !== `/claimant/reports/${report.reportId}`) {
         throw new Error("invalid response");
       }
       intentRef.current = undefined;

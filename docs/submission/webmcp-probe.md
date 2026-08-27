@@ -1,5 +1,7 @@
 # ClaimGate 原生 WebMCP 兼容性证据
 
+> 历史说明：本文记录的是 Task 6A 四工具可行性门禁及当时的页面矩阵，不代表当前九工具实现。当前三次九工具原生验收以 [testing.md](testing.md) 及其结构化 artifacts 为准。
+
 ## 结论
 
 2026-08-27 11:41（Asia/Shanghai），ClaimGate 在未注入、未覆盖 `document.modelContext` 的 Chrome for Testing 151 中，使用正式构建、全新临时 SQLite 数据库和全新 demo instance 跑通四工具闭环。两个写工具都先返回非 `null` JSON 字符串，再由 Next 同文档导航到 `nextPath`；Claim checkpoint 与离开 Claimant 页面后的工具集均为空。

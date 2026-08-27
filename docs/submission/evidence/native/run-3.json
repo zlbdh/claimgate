@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "runId": "a27eecc0-832d-4e1b-b085-1d88ff78900a",
+  "ordinal": 3,
+  "startedAt": "2026-08-27T13:25:34.451Z",
+  "endedAt": "2026-08-27T13:25:40.031Z",
+  "durationMs": 5580,
+  "browserVersion": "151.0.7922.34",
+  "nodeVersion": "v22.20.0",
+  "playwrightVersion": "1.62.1",
+  "buildId": "qsTUO_NQONwcKcOfRHqN6",
+  "baseCommit": "d6eab8aa2f3a1005142b857fd9eab851b0956343",
+  "flag": "--enable-features=WebMCPTesting",
+  "signatures": {
+    "registerTool": "registerTool(tool, { signal }) -> Promise<void>",
+    "getTools": "getTools() -> Promise<descriptor[]>; inputSchema JSON string",
+    "executeTool": "executeTool(descriptor, JSON.stringify(input)) -> Promise<string|null>"
+  },
+  "phases": [
+    {
+      "phase": "Claimant workspace",
+      "observedAt": "2026-08-27T13:25:36.307Z",
+      "tools": [
+        "create_lost_report_draft",
+        "list_my_reports"
+      ],
+      "schemas": [
+        "create_lost_report_draft:JSON-string",
+        "list_my_reports:JSON-string"
+      ]
+    },
+    {
+      "phase": "DRAFT report",
+      "observedAt": "2026-08-27T13:25:36.588Z",
+      "tools": [
+        "list_my_reports",
+        "update_lost_report_draft"
+      ],
+      "schemas": [
+        "list_my_reports:JSON-string",
+        "update_lost_report_draft:JSON-string"
+      ]
+    },
+    {
+      "phase": "PUBLISHED report",
+      "observedAt": "2026-08-27T13:25:36.948Z",
+      "tools": [
+        "find_candidate_matches",
+        "list_my_reports"
+      ],
+      "schemas": [
+        "find_candidate_matches:JSON-string",
+        "list_my_reports:JSON-string"
+      ]
+    },
+    {
+      "phase": "PUBLISHED with candidates",
+      "observedAt": "2026-08-27T13:25:37.087Z",
+      "tools": [
+        "find_candidate_matches",
+        "list_my_reports",
+        "stage_claim_candidate"
+      ],
+      "schemas": [
+        "find_candidate_matches:JSON-string",
+        "list_my_reports:JSON-string",
+        "stage_claim_candidate:JSON-string"
+      ]
+    },
+    {
+      "phase": "EVIDENCE_REQUIRED checkpoint",
+      "observedAt": "2026-08-27T13:25:37.274Z",
+      "tools": [
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "UNDER_REVIEW Claimant",
+      "observedAt": "2026-08-27T13:25:37.629Z",
+      "tools": [
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "Staff queue",
+      "observedAt": "2026-08-27T13:25:38.019Z",
+      "tools": [
+        "list_pending_claims"
+      ],
+      "schemas": [
+        "list_pending_claims:JSON-string"
+      ]
+    },
+    {
+      "phase": "Staff UNDER_REVIEW claim",
+      "observedAt": "2026-08-27T13:25:38.280Z",
+      "tools": [
+        "get_claim_review_summary",
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_review_summary:JSON-string",
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "Staff APPROVED claim",
+      "observedAt": "2026-08-27T13:25:38.543Z",
+      "tools": [
+        "get_claim_review_summary",
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_review_summary:JSON-string",
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "Claimant APPROVED claim",
+      "observedAt": "2026-08-27T13:25:38.931Z",
+      "tools": [
+        "get_claim_status",
+        "get_pickup_instructions"
+      ],
+      "schemas": [
+        "get_claim_status:JSON-string",
+        "get_pickup_instructions:JSON-string"
+      ]
+    },
+    {
+      "phase": "Staff PICKUP_READY claim",
+      "observedAt": "2026-08-27T13:25:39.413Z",
+      "tools": [
+        "get_claim_review_summary",
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_review_summary:JSON-string",
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "Staff COLLECTED claim",
+      "observedAt": "2026-08-27T13:25:39.660Z",
+      "tools": [
+        "get_claim_status"
+      ],
+      "schemas": [
+        "get_claim_status:JSON-string"
+      ]
+    },
+    {
+      "phase": "Home teardown",
+      "observedAt": "2026-08-27T13:25:39.861Z",
+      "tools": [],
+      "schemas": []
+    }
+  ],
+  "executedTools": [
+    "create_lost_report_draft",
+    "find_candidate_matches",
+    "get_claim_review_summary",
+    "get_claim_status",
+    "get_pickup_instructions",
+    "list_my_reports",
+    "list_pending_claims",
+    "stage_claim_candidate",
+    "update_lost_report_draft"
+  ],
+  "writes": {
+    "createNonNullJsonString": true,
+    "updateNonNullJsonString": true,
+    "stageNonNullJsonString": true
+  },
+  "instanceCount": 1,
+  "humanOnlyToolsAbsent": true,
+  "cleanupVerified": true,
+  "navigation": "same-document Next navigation reached both nextPath values",
+  "teardown": "left Claimant pages; native getTools returned []",
+  "isolation": "fresh temporary SQLite database and fresh demo instance; deleted after run",
+  "scans": "tool/HTML/activity/log/storage/history surfaces excluded internal IDs and runtime evidence/pickup canaries"
+}
