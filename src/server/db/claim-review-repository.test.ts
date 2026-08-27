@@ -90,15 +90,23 @@ describe("purpose-specific claim review repository", () => {
       }));
     }
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(value.instance.demoInstanceId, claims[0]!.claimId);
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(value.instance.demoInstanceId, claims[2]!.claimId);
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'LOCKED', attempts = 3
+      UPDATE claims SET attempts = 1, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(value.instance.demoInstanceId, claims[3]!.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET attempts = 2, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(value.instance.demoInstanceId, claims[3]!.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET status = 'LOCKED', attempts = 3, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(value.instance.demoInstanceId, claims[3]!.claimId);
 
@@ -106,11 +114,11 @@ describe("purpose-specific claim review repository", () => {
       demoInstanceId: value.instance.demoInstanceId,
       claimId: claims[0]!.claimId,
       staffActorId: "staff-demo",
-      expectedClaimVersion: 1,
+      expectedClaimVersion: 2,
       expectedItemVersion: value.item.version,
     }) as { status: string; version: number };
 
-    expect(approved).toMatchObject({ status: "APPROVED", version: 2 });
+    expect(approved).toMatchObject({ status: "APPROVED", version: 3 });
     const rows = testDatabase!.database.prepare(`
       SELECT id, status, reviewer_actor_id AS reviewer, rejection_reason AS reason
       FROM claims WHERE demo_instance_id = ? ORDER BY id
@@ -135,38 +143,54 @@ describe("purpose-specific claim review repository", () => {
   it("rejects UNDER_REVIEW manually and permits only one LOCKED unlock", () => {
     const value = setupClaim();
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(value.instance.demoInstanceId, value.claim.claimId);
     expect(value.repository.rejectClaim({
       demoInstanceId: value.instance.demoInstanceId,
       claimId: value.claim.claimId,
       staffActorId: "staff-demo",
-      expectedClaimVersion: 1,
+      expectedClaimVersion: 2,
     })).toMatchObject({ status: "REJECTED", rejectionReason: "STAFF_REJECTED" });
 
     testDatabase!.close();
     testDatabase = undefined;
     const second = setupClaim();
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'LOCKED', attempts = 3
+      UPDATE claims SET attempts = 1, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(second.instance.demoInstanceId, second.claim.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET attempts = 2, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(second.instance.demoInstanceId, second.claim.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET status = 'LOCKED', attempts = 3, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(second.instance.demoInstanceId, second.claim.claimId);
     expect(second.repository.unlockClaim({
       demoInstanceId: second.instance.demoInstanceId,
       claimId: second.claim.claimId,
       staffActorId: "staff-demo",
-      expectedClaimVersion: 1,
+      expectedClaimVersion: 4,
     })).toMatchObject({ status: "EVIDENCE_REQUIRED", failedAttempts: 0, unlockCount: 1 });
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'LOCKED', attempts = 3
+      UPDATE claims SET attempts = 1, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(second.instance.demoInstanceId, second.claim.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET attempts = 2, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(second.instance.demoInstanceId, second.claim.claimId);
+    testDatabase!.database.prepare(`
+      UPDATE claims SET status = 'LOCKED', attempts = 3, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(second.instance.demoInstanceId, second.claim.claimId);
     expect(() => second.repository.unlockClaim({
       demoInstanceId: second.instance.demoInstanceId,
       claimId: second.claim.claimId,
       staffActorId: "staff-demo",
-      expectedClaimVersion: 2,
+      expectedClaimVersion: 8,
     })).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
   });
 });

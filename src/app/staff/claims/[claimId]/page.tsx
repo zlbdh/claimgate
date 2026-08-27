@@ -6,6 +6,7 @@ import { ClaimStepper } from "@/components/claim-stepper";
 import { StaffDecisionForm } from "@/components/staff-decision-form";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createAuditService } from "@/features/audit/audit-service";
+import { formatUtcTime } from "@/features/audit/staff-time";
 import { getHttpRuntime } from "@/server/http/runtime";
 import { mintClaimReviewCsrf, readStaffPageSession } from "@/server/http/staff-page-session";
 
@@ -69,9 +70,13 @@ export default async function StaffClaimReviewPage({ params }: { params: Promise
         <aside className="workspace-rail">
           <section><h2>Lost report</h2><p>{review.report.publicDescription}</p></section>
           <section><h2>Redacted timeline</h2><ol className="timeline-list">
-            {review.timeline.map((entry, index) => <li key={`${entry.occurredAtMs}-${index}`}>
-              <strong>{entry.action}</strong><span>{entry.actor} · {entry.result}</span>
-            </li>)}
+            {review.timeline.map((entry, index) => {
+              const time = formatUtcTime(entry.occurredAtMs);
+              return <li key={`${entry.occurredAtMs}-${index}`}>
+                <strong>{entry.action}</strong><span>{entry.actor} · {entry.result}</span>
+                <time dateTime={time.dateTime}>{time.label}</time>
+              </li>;
+            })}
           </ol></section>
         </aside>
       </div>

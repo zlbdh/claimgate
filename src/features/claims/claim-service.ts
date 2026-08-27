@@ -113,6 +113,7 @@ export function createClaimService(dependencies: {
       demoInstanceId: context.demoInstanceId,
       actorId: context.actorId,
       action,
+      expectedClaimId: claimId,
       idempotencyKey: input.idempotencyKey,
       requestFingerprint: fingerprint,
     }, () => ({ kind: "claim_state_ack", ...mutation(repository) })));
@@ -195,6 +196,7 @@ export function createClaimService(dependencies: {
         demoInstanceId: context.demoInstanceId,
         actorId: context.actorId,
         action: "evidence_submit",
+        expectedClaimId: claimId,
         idempotencyKey: input.idempotencyKey,
         requestFingerprint: fingerprint,
       }, () => {

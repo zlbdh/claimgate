@@ -98,16 +98,11 @@ describe("全库内部库存身份公共边界", () => {
     database.prepare(`
       UPDATE lost_reports SET owner_actor_id = 'claimant-demo' WHERE demo_instance_id = ? AND id = ?
     `).run(second.demoInstanceId, report.reportId);
-    database.prepare(`
+    expect(() => database.prepare(`
       UPDATE claims SET claimant_actor_id = ? WHERE demo_instance_id = ? AND id = ?
-    `).run(internalId, second.demoInstanceId, claim.claimId);
-    expect(() => repository.updateClaim({
-      demoInstanceId: second.demoInstanceId,
-      claimId: claim.claimId,
-      expectedVersion: claim.version,
-      actorId: "claimant-demo",
-      patch: { attempts: 1 },
-    })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
+    `).run(internalId, second.demoInstanceId, claim.claimId)).toThrow();
+    expect(repository.getClaim(second.demoInstanceId, claim.claimId).claimantActorId)
+      .toBe("claimant-demo");
   });
 
   it("实例 B 的首次与 replay 幂等 ack 拒绝实例 A 内部 ID 及嵌入值", () => {

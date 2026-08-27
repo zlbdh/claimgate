@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 const FIELDS = [
@@ -8,6 +8,13 @@ const FIELDS = [
   ["contents_or_accessory", "Private evidence · contents or accessory"],
   ["identifier_suffix", "Private evidence · identifier suffix"],
 ] as const;
+
+function clearPasswordInputs(form: HTMLFormElement | null): void {
+  if (!form) return;
+  for (const input of form.querySelectorAll<HTMLInputElement>('input[type="password"]')) {
+    input.value = "";
+  }
+}
 
 export function EvidenceForm({
   claimId,
@@ -21,8 +28,23 @@ export function EvidenceForm({
   fetcher?: typeof fetch;
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [message, setMessage] = useState<string>();
+
+  useEffect(() => {
+    const clear = () => clearPasswordInputs(formRef.current);
+    clear();
+    window.addEventListener("pageshow", clear);
+    window.addEventListener("pagehide", clear);
+    window.addEventListener("popstate", clear);
+    return () => {
+      clear();
+      window.removeEventListener("pageshow", clear);
+      window.removeEventListener("pagehide", clear);
+      window.removeEventListener("popstate", clear);
+    };
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,8 +56,8 @@ export function EvidenceForm({
     for (const [name] of FIELDS) {
       const input = form.elements.namedItem(name) as HTMLInputElement;
       body.set(name, input.value);
-      input.value = "";
     }
+    clearPasswordInputs(form);
     setMessage("Checking aggregate evidence…");
     try {
       const response = await fetcher(`/api/claims/${claimId}/evidence`, {
@@ -57,11 +79,13 @@ export function EvidenceForm({
       router.refresh();
     } catch {
       setMessage("The connection failed. Your evidence fields remain empty; reload before retrying.");
+    } finally {
+      clearPasswordInputs(formRef.current);
     }
   }
 
   return (
-    <form className="report-form evidence-form" aria-label="Private evidence" onSubmit={submit}>
+    <form ref={formRef} className="report-form evidence-form" aria-label="Private evidence" onSubmit={submit}>
       <p className="panel-copy">
         Enter up to three private facts. Only an aggregate result is retained; individual answers are not stored.
       </p>

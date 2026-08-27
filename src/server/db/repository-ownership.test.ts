@@ -29,26 +29,33 @@ function forceValidClaimState(
 ): void {
   if (status === "EVIDENCE_REQUIRED") return;
   if (status === "LOCKED") {
-    database.prepare(`UPDATE claims SET status = 'LOCKED', attempts = 3
+    database.prepare(`UPDATE claims SET attempts = 1, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+    database.prepare(`UPDATE claims SET attempts = 2, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
+    database.prepare(`UPDATE claims SET status = 'LOCKED', attempts = 3, version = version + 1
       WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
     return;
   }
-  database.prepare(`UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+  database.prepare(`UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1,
+    version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
   if (status === "UNDER_REVIEW") return;
   if (status === "REJECTED") {
     database.prepare(`UPDATE claims SET status = 'REJECTED', reviewer_actor_id = 'staff-demo',
-      rejection_reason = 'STAFF_REJECTED' WHERE demo_instance_id = ? AND id = ?`)
+      rejection_reason = 'STAFF_REJECTED', version = version + 1
+      WHERE demo_instance_id = ? AND id = ?`)
       .run(instanceId, claimId);
     return;
   }
-  database.prepare(`UPDATE claims SET status = 'APPROVED', reviewer_actor_id = 'staff-demo'
+  database.prepare(`UPDATE claims SET status = 'APPROVED', reviewer_actor_id = 'staff-demo',
+    version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
   if (status === "APPROVED") return;
-  database.prepare(`UPDATE claims SET status = 'PICKUP_READY'
+  database.prepare(`UPDATE claims SET status = 'PICKUP_READY', version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
   if (status === "PICKUP_READY") return;
-  database.prepare(`UPDATE claims SET status = 'COLLECTED'
+  database.prepare(`UPDATE claims SET status = 'COLLECTED', version = version + 1
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
 }
 
@@ -176,9 +183,9 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
       claimId: claim.claimId,
       expectedVersion: claim.version,
       actorId: "claimant-demo",
-      patch: { status: "UNDER_REVIEW", attempts: 1, evidenceEligible: true },
+      patch: { status: "UNDER_REVIEW", evidenceEligible: true },
     })).toMatchObject({
-      attempts: 1,
+      attempts: 0,
       evidenceEligible: true,
       reviewerActorId: null,
       passGeneration: 0,

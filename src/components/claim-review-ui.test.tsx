@@ -17,7 +17,10 @@ describe("claim review UI privacy contracts", () => {
     expect(source).toContain("spellCheck={false}");
     expect(source).toContain("input.value = \"\"");
     expect(source.indexOf("input.value = \"\"")).toBeLessThan(source.indexOf("await fetcher"));
-    expect(source).not.toMatch(/useRef|localStorage|sessionStorage|history\.|console\./);
+    expect(source).toContain("useRef");
+    expect(source).toContain("pageshow");
+    expect(source).toContain("finally");
+    expect(source).not.toMatch(/localStorage|sessionStorage|history\.|console\./);
     expect(source).not.toMatch(/useState\([^)]*(answer|evidence)/i);
     expect(source).not.toContain("URLSearchParams(window");
   });
@@ -35,6 +38,22 @@ describe("claim review UI privacy contracts", () => {
     fields.forEach((field, index) => fireEvent.change(field, { target: { value: `canary-${index}` } }));
     fireEvent.submit(screen.getByRole("form", { name: /private evidence/i }));
     expect(fetcher).toHaveBeenCalledOnce();
+    fields.forEach((field) => expect(field.value).toBe(""));
+  });
+
+  it("clears browser-restored password values on pageshow including persisted BFCache", () => {
+    const fetcher = vi.fn();
+    const { container } = render(<EvidenceForm
+      claimId="claim-test"
+      csrfToken="csrf-test"
+      expectedVersion={1}
+      fetcher={fetcher as typeof fetch}
+    />);
+    const fields = [...container.querySelectorAll<HTMLInputElement>('input[type="password"]')];
+    fields.forEach((field, index) => { field.value = `restored-${index}`; });
+    const event = new Event("pageshow");
+    Object.defineProperty(event, "persisted", { value: true });
+    window.dispatchEvent(event);
     fields.forEach((field) => expect(field.value).toBe(""));
   });
 

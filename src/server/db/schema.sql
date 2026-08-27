@@ -216,68 +216,76 @@ BEGIN
   SELECT RAISE(ABORT, 'invalid claim v5 state');
 END;
 
-CREATE TRIGGER IF NOT EXISTS claims_v5_invariants_update
+DROP TRIGGER IF EXISTS claims_v5_invariants_update;
+DROP TRIGGER IF EXISTS claims_v5_transition_update;
+DROP TRIGGER IF EXISTS claims_v5_unlock_update;
+DROP TRIGGER IF EXISTS claims_v5_operation_update;
+
+CREATE TRIGGER claims_v5_operation_update
 BEFORE UPDATE ON claims
 WHEN COALESCE((
-  typeof(NEW.attempts) = 'integer' AND NEW.attempts BETWEEN 0 AND 3
-  AND typeof(NEW.evidence_eligible) = 'integer' AND NEW.evidence_eligible IN (0, 1)
-  AND typeof(NEW.unlock_count) = 'integer' AND NEW.unlock_count BETWEEN 0 AND 1
-  AND (NEW.reviewer_actor_id IS NULL OR NEW.reviewer_actor_id = 'staff-demo')
+  NEW.demo_instance_id = OLD.demo_instance_id AND NEW.id = OLD.id
+  AND NEW.report_id = OLD.report_id AND NEW.found_item_id = OLD.found_item_id
+  AND NEW.claimant_actor_id = OLD.claimant_actor_id
+  AND NEW.version = OLD.version + 1
   AND (
-    (NEW.status = 'EVIDENCE_REQUIRED' AND NEW.attempts BETWEEN 0 AND 2
-      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
-      AND NEW.rejection_reason IS NULL)
-    OR (NEW.status = 'LOCKED' AND NEW.attempts = 3
-      AND NEW.evidence_eligible = 0 AND NEW.reviewer_actor_id IS NULL
-      AND NEW.rejection_reason IS NULL)
-    OR (NEW.status = 'UNDER_REVIEW' AND NEW.attempts BETWEEN 0 AND 2
-      AND NEW.evidence_eligible = 1 AND NEW.reviewer_actor_id IS NULL
-      AND NEW.rejection_reason IS NULL)
-    OR (NEW.status IN ('APPROVED', 'PICKUP_READY', 'COLLECTED')
-      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
-      AND NEW.reviewer_actor_id = 'staff-demo' AND NEW.rejection_reason IS NULL)
-    OR (NEW.status = 'REJECTED' AND NEW.rejection_reason = 'STAFF_REJECTED'
-      AND NEW.attempts BETWEEN 0 AND 2 AND NEW.evidence_eligible = 1
-      AND NEW.reviewer_actor_id = 'staff-demo')
-    OR (NEW.status = 'REJECTED'
+    (OLD.status = 'EVIDENCE_REQUIRED' AND NEW.status = 'EVIDENCE_REQUIRED'
+      AND OLD.attempts IN (0, 1) AND NEW.attempts = OLD.attempts + 1
+      AND OLD.evidence_eligible = 0 AND NEW.evidence_eligible = 0
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id IS NULL
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason IS NULL
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'EVIDENCE_REQUIRED' AND NEW.status = 'UNDER_REVIEW'
+      AND OLD.attempts BETWEEN 0 AND 2 AND NEW.attempts = OLD.attempts
+      AND OLD.evidence_eligible = 0 AND NEW.evidence_eligible = 1
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id IS NULL
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason IS NULL
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'EVIDENCE_REQUIRED' AND NEW.status = 'LOCKED'
+      AND OLD.attempts = 2 AND NEW.attempts = 3
+      AND OLD.evidence_eligible = 0 AND NEW.evidence_eligible = 0
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id IS NULL
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason IS NULL
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'LOCKED' AND NEW.status = 'EVIDENCE_REQUIRED'
+      AND OLD.attempts = 3 AND NEW.attempts = 0
+      AND OLD.evidence_eligible = 0 AND NEW.evidence_eligible = 0
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id IS NULL
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason IS NULL
+      AND OLD.unlock_count = 0 AND NEW.unlock_count = 1)
+    OR (OLD.status = 'UNDER_REVIEW' AND NEW.status = 'REJECTED'
+      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id = 'staff-demo'
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason = 'STAFF_REJECTED'
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status IN ('EVIDENCE_REQUIRED', 'UNDER_REVIEW', 'LOCKED')
+      AND NEW.status = 'REJECTED' AND NEW.attempts = OLD.attempts
+      AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id IS NULL
+      AND OLD.rejection_reason IS NULL
       AND NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
-      AND NEW.reviewer_actor_id IS NULL
-      AND ((NEW.evidence_eligible = 0 AND NEW.attempts BETWEEN 0 AND 3)
-        OR (NEW.evidence_eligible = 1 AND NEW.attempts BETWEEN 0 AND 2)))
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'UNDER_REVIEW' AND NEW.status = 'APPROVED'
+      AND NEW.attempts = OLD.attempts AND OLD.evidence_eligible = 1 AND NEW.evidence_eligible = 1
+      AND OLD.reviewer_actor_id IS NULL AND NEW.reviewer_actor_id = 'staff-demo'
+      AND OLD.rejection_reason IS NULL AND NEW.rejection_reason IS NULL
+      AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'APPROVED' AND NEW.status = 'PICKUP_READY'
+      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
+      AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'COLLECTED'
+      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
+      AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
+    OR (OLD.status IN ('APPROVED', 'PICKUP_READY') AND NEW.status = OLD.status
+      AND NEW.attempts = OLD.attempts AND NEW.evidence_eligible = OLD.evidence_eligible
+      AND NEW.reviewer_actor_id = OLD.reviewer_actor_id
+      AND NEW.rejection_reason IS OLD.rejection_reason AND NEW.unlock_count = OLD.unlock_count)
   )
 ), 0) = 0
 BEGIN
-  SELECT RAISE(ABORT, 'invalid claim v5 state');
-END;
-
-CREATE TRIGGER IF NOT EXISTS claims_v5_transition_update
-BEFORE UPDATE OF status ON claims
-WHEN NEW.status <> OLD.status AND NOT (
-  (OLD.status = 'EVIDENCE_REQUIRED' AND NEW.status IN ('UNDER_REVIEW', 'LOCKED', 'REJECTED'))
-  OR (OLD.status = 'UNDER_REVIEW' AND NEW.status IN ('APPROVED', 'REJECTED'))
-  OR (OLD.status = 'LOCKED' AND NEW.status IN ('EVIDENCE_REQUIRED', 'REJECTED'))
-  OR (OLD.status = 'APPROVED' AND NEW.status = 'PICKUP_READY')
-  OR (OLD.status = 'PICKUP_READY' AND NEW.status = 'COLLECTED')
-)
-BEGIN
-  SELECT RAISE(ABORT, 'invalid claim v5 transition');
-END;
-
-CREATE TRIGGER IF NOT EXISTS claims_v5_unlock_update
-BEFORE UPDATE ON claims
-WHEN NEW.unlock_count < OLD.unlock_count
-  OR NEW.unlock_count > OLD.unlock_count + 1
-  OR (NEW.unlock_count <> OLD.unlock_count AND NOT (
-    OLD.unlock_count = 0 AND NEW.unlock_count = 1
-    AND OLD.status = 'LOCKED' AND OLD.attempts = 3
-    AND NEW.status = 'EVIDENCE_REQUIRED' AND NEW.attempts = 0
-  ))
-  OR (OLD.status = 'LOCKED' AND NEW.status = 'EVIDENCE_REQUIRED' AND NOT (
-    OLD.unlock_count = 0 AND NEW.unlock_count = 1
-    AND OLD.attempts = 3 AND NEW.attempts = 0
-  ))
-BEGIN
-  SELECT RAISE(ABORT, 'invalid claim unlock transition');
+  SELECT RAISE(ABORT, 'invalid claim v5 operation');
 END;
 
 CREATE TABLE IF NOT EXISTS claim_events (

@@ -175,8 +175,16 @@ test("real provider executes all four tools across the production Claimant flow"
   await expect.poll(() => toolNames(page)).toEqual([]);
   await page.getByRole("button", { name: "Switch to Staff role" }).click();
   await page.getByRole("link", { name: "Open Staff review desk" }).click();
+  await expect(page.getByLabel(/Waiting (<1 min|\d+ min|\d+ hrs?)/)).toBeVisible();
   await page.getByRole("link", { name: /earbuds/i }).click();
   await expect(page.getByRole("heading", { name: "Staff decision" })).toBeVisible();
+  const timelineTimes = page.locator(".timeline-list time");
+  await expect(timelineTimes).toHaveCount(2);
+  for (let index = 0; index < 2; index += 1) {
+    await expect(timelineTimes.nth(index)).toHaveAttribute("datetime", /Z$/);
+    await expect(timelineTimes.nth(index)).toContainText("UTC");
+  }
+  await expect(page.locator(".timeline-list")).toContainText(/claimant.*(CREATED|ELIGIBLE)/);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.screenshot({ path: testInfo.outputPath("staff-review-desktop.png"), fullPage: true });
   await page.getByRole("button", { name: "Approve claim" }).click();
@@ -218,9 +226,28 @@ test("manual failure lock, one unlock, second lock, and password clearing bounda
   await installFaithfulModelContext(page);
   const claimId = await stageClaimForReview(page, "lockflow");
   const claimPath = `/claimant/claims/${claimId}`;
+  const bfcacheCanaries = Array.from({ length: 3 }, () => `bf-${crypto.randomUUID()}`);
+  let passwordFields = page.locator('input[type="password"]');
+  for (let index = 0; index < 3; index += 1) await passwordFields.nth(index).fill(bfcacheCanaries[index]!);
+  await page.getByRole("link", { name: "Return to ClaimGate desk" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${claimPath}$`));
+  passwordFields = page.locator('input[type="password"]');
+  for (let index = 0; index < 3; index += 1) await expect(passwordFields.nth(index)).toHaveValue("");
+  await page.goForward();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${claimPath}$`));
+  passwordFields = page.locator('input[type="password"]');
+  for (let index = 0; index < 3; index += 1) await expect(passwordFields.nth(index)).toHaveValue("");
+  await page.reload();
+  for (let index = 0; index < 3; index += 1) await expect(passwordFields.nth(index)).toHaveValue("");
+  const restoredSurface = JSON.stringify({ html: await page.content(), url: page.url(), browserLogs });
+  for (const canary of bfcacheCanaries) expect(restoredSurface).not.toContain(canary);
 
   await page.route("**/api/claims/*/evidence", (route) => route.abort());
-  const passwordFields = page.locator('input[type="password"]');
+  passwordFields = page.locator('input[type="password"]');
   await expect(passwordFields).toHaveCount(3);
   await passwordFields.nth(0).fill("network-only-canary");
   await page.getByRole("button", { name: "Submit private evidence" }).click();

@@ -84,9 +84,15 @@ describe("digest-only SQLite 约束", () => {
       inventoryItemId: item.inventoryItemId,
       claimantActorId: "claimant-demo",
     });
+    database.prepare(`UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1,
+      version = version + 1 WHERE demo_instance_id = ? AND id = ?`)
+      .run(instance.demoInstanceId, claim.claimId);
+    database.prepare(`UPDATE claims SET status = 'APPROVED', reviewer_actor_id = 'staff-demo',
+      version = version + 1 WHERE demo_instance_id = ? AND id = ?`)
+      .run(instance.demoInstanceId, claim.claimId);
     const update = database.prepare(`
       UPDATE claims SET pickup_pass_salt = ?, pickup_pass_digest = ?,
-        pickup_pass_expires_at_ms = ?, pass_generation = ?
+        pickup_pass_expires_at_ms = ?, pass_generation = ?, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `);
     const valid = Buffer.alloc(32, 2);
@@ -98,7 +104,7 @@ describe("digest-only SQLite 约束", () => {
     `).get(instance.demoInstanceId, claim.claimId)).toEqual({ generationType: "integer" });
     database.prepare(`
       UPDATE claims SET pickup_pass_salt=NULL, pickup_pass_digest=NULL,
-        pickup_pass_expires_at_ms=NULL, pass_generation=0
+        pickup_pass_expires_at_ms=NULL, pass_generation=0, version = version + 1
     `).run();
     for (const values of [
       ["x".repeat(32), "y".repeat(32), 1_800_000_000_000, 1],

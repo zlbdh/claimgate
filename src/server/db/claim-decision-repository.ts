@@ -166,12 +166,19 @@ export function approveClaim(context: RepositoryContext, input: ApproveClaimInpu
       WHERE demo_instance_id = ? AND id = ? AND status = 'UNDER_REVIEW'
         AND evidence_eligible = 1 AND version = ?
     `).run(input.demoInstanceId, input.claimId, input.expectedClaimVersion).changes !== 1) stateChanged();
-    context.database.prepare(`
+    const loserUpdate = context.database.prepare(`
       UPDATE claims SET status = 'REJECTED', reviewer_actor_id = NULL,
         rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM', version = version + 1
       WHERE demo_instance_id = ? AND found_item_id = ? AND id <> ?
         AND status IN ('EVIDENCE_REQUIRED', 'UNDER_REVIEW', 'LOCKED')
     `).run(input.demoInstanceId, row.itemId, input.claimId);
+    if (loserUpdate.changes !== losers.length) stateChanged();
+    const active = context.database.prepare(`
+      SELECT COUNT(*) AS count FROM claims
+      WHERE demo_instance_id = ? AND found_item_id = ?
+        AND status IN ('EVIDENCE_REQUIRED', 'UNDER_REVIEW', 'LOCKED')
+    `).get(input.demoInstanceId, row.itemId) as { count: number };
+    if (active.count !== 0) stateChanged();
     appendClaimEvent(context, input.demoInstanceId, input.claimId, "APPROVED", input.staffActorId);
     for (const loser of losers) {
       appendClaimEvent(context, input.demoInstanceId, loser.id, "COMPETING_REJECTED", input.staffActorId);

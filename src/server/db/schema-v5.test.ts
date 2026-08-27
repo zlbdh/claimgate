@@ -112,16 +112,53 @@ describe("schema v5 claim review invariants", () => {
       WHERE demo_instance_id = ? AND id = ?
     `).run(instance.demoInstanceId, claim.claimId));
     testDatabase.database.prepare(`
-      UPDATE claims SET status = 'LOCKED', attempts = 3
+      UPDATE claims SET attempts = 1, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(instance.demoInstanceId, claim.claimId);
     testDatabase.database.prepare(`
-      UPDATE claims SET status = 'EVIDENCE_REQUIRED', attempts = 0, unlock_count = 1
+      UPDATE claims SET attempts = 2, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(instance.demoInstanceId, claim.claimId);
+    testDatabase.database.prepare(`
+      UPDATE claims SET status = 'LOCKED', attempts = 3, version = version + 1
+      WHERE demo_instance_id = ? AND id = ?
+    `).run(instance.demoInstanceId, claim.claimId);
+    testDatabase.database.prepare(`
+      UPDATE claims SET status = 'EVIDENCE_REQUIRED', attempts = 0, unlock_count = 1,
+        version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(instance.demoInstanceId, claim.claimId);
     expectConstraintViolation(() => testDatabase!.database.prepare(`
       UPDATE claims SET status = 'LOCKED', attempts = 3, unlock_count = 0
       WHERE demo_instance_id = ? AND id = ?
+    `).run(instance.demoInstanceId, claim.claimId));
+  });
+
+  it.each([
+    ["missing version bump", "attempts = 1"],
+    ["skipped failed attempt", "attempts = 2, version = version + 1"],
+    ["early lock", "status = 'LOCKED', attempts = 3, version = version + 1"],
+    ["arbitrary claimant identity", "claimant_actor_id = 'staff-demo', attempts = 1, version = version + 1"],
+    ["arbitrary report identity", "report_id = report_id || '-other', attempts = 1, version = version + 1"],
+  ])("rejects operation-uncoupled direct SQL: %s", (_name, mutation) => {
+    testDatabase = createTestDatabase();
+    const instance = testDatabase.repository.createDemoInstance();
+    const item = testDatabase.repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
+    const report = testDatabase.repository.createLostReport({
+      demoInstanceId: instance.demoInstanceId, ownerActorId: "claimant-demo", category: "earbuds",
+      timeWindow: { from: "a", to: "b" }, area: "library", color: "black",
+      publicTags: [], publicDescription: "operation coupled fixture",
+    });
+    testDatabase.repository.publishLostReport({
+      demoInstanceId: instance.demoInstanceId, reportId: report.reportId,
+      expectedVersion: report.version, actorId: "claimant-demo",
+    });
+    const claim = testDatabase.repository.createClaim({
+      demoInstanceId: instance.demoInstanceId, reportId: report.reportId,
+      inventoryItemId: item.inventoryItemId, claimantActorId: "claimant-demo",
+    });
+    expectConstraintViolation(() => testDatabase!.database.prepare(`
+      UPDATE claims SET ${mutation} WHERE demo_instance_id = ? AND id = ?
     `).run(instance.demoInstanceId, claim.claimId));
   });
 });

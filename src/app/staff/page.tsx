@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { DEMO_SESSION_COOKIE } from "@/features/auth/demo-session";
 import { createAuditService } from "@/features/audit/audit-service";
+import { formatWaitingDuration } from "@/features/audit/staff-time";
 import { readStaffPageSession } from "@/server/http/staff-page-session";
 import { getHttpRuntime } from "@/server/http/runtime";
 
@@ -41,7 +42,12 @@ export default async function StaffQueuePage() {
                 <span className="report-list-category">{entry.item.category}</span>
                 <span>{entry.item.area} · {entry.item.color}</span>
                 <span className="status-stamp status-under_review">UNDER REVIEW</span>
-                <small>{entry.failedAttempts} failed · {entry.conflictCount} competing</small>
+                <small>
+                  {entry.failedAttempts} failed · {entry.conflictCount} competing ·{" "}
+                  <span aria-label={`Waiting ${formatWaitingDuration(entry.waitingDurationMs)}`}>
+                    waiting {formatWaitingDuration(entry.waitingDurationMs)}
+                  </span>
+                </small>
               </Link>
             </li>)}
           </ul>

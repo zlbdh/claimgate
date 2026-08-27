@@ -26,7 +26,10 @@ describe("Task 7 private page and physical route contracts", () => {
     expect(claimant).toContain("EvidenceForm");
     expect(claimant).toContain("ClaimStepper");
     expect(staffQueue).toContain("readStaffPageSession");
+    expect(staffQueue).toContain("waitingDurationMs");
     expect(staffReview).toContain("StaffDecisionForm");
+    expect(staffReview).toContain("<time");
+    expect(staffReview).toContain("dateTime=");
     expect([claimant, staffQueue, staffReview].join("\n")).not.toMatch(/inventoryItemId|salt|digest|storedSlots/);
   });
 

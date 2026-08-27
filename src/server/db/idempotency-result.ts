@@ -61,6 +61,7 @@ function validateClaimState(
   const common = exactFields(fields, keys)
     && result.kind === "claim_state_ack"
     && typeof result.claimId === "string"
+    && typeof result.status === "string"
     && positiveVersion(result.version)
     && Number.isSafeInteger(result.failedAttempts)
     && Number(result.failedAttempts) >= 0
@@ -69,21 +70,38 @@ function validateClaimState(
     && Number.isSafeInteger(result.unlockCount)
     && Number(result.unlockCount) >= 0
     && Number(result.unlockCount) <= 1;
+  if (!common) throw new DomainError(errorCode);
+  const attempts = result.failedAttempts as number;
+  const unlock = result.unlockCount as number;
   const actionBound = request.action === "evidence_submit"
-    ? ["EVIDENCE_REQUIRED", "UNDER_REVIEW", "LOCKED"].includes(String(result.status))
-      && result.rejectionReason === null
+    ? (
+        (result.status === "EVIDENCE_REQUIRED" && attempts >= 1 && attempts <= 2
+          && result.evidenceEligible === false)
+        || (result.status === "UNDER_REVIEW" && attempts >= 0 && attempts <= 2
+          && result.evidenceEligible === true)
+        || (result.status === "LOCKED" && attempts === 3 && result.evidenceEligible === false)
+      ) && result.rejectionReason === null && unlock >= 0 && unlock <= 1
     : request.action === "claim_approve"
-      ? result.status === "APPROVED" && result.rejectionReason === null
+      ? result.status === "APPROVED" && attempts >= 0 && attempts <= 2
+        && result.evidenceEligible === true && result.rejectionReason === null
+        && unlock >= 0 && unlock <= 1
       : request.action === "claim_reject"
-        ? result.status === "REJECTED" && result.rejectionReason === "STAFF_REJECTED"
+        ? result.status === "REJECTED" && attempts >= 0 && attempts <= 2
+          && result.evidenceEligible === true && result.rejectionReason === "STAFF_REJECTED"
+          && unlock >= 0 && unlock <= 1
         : request.action === "claim_unlock"
-          ? result.status === "EVIDENCE_REQUIRED" && result.failedAttempts === 0
-            && result.evidenceEligible === false && result.unlockCount === 1
+          ? result.status === "EVIDENCE_REQUIRED" && attempts === 0
+            && result.evidenceEligible === false && unlock === 1 && result.rejectionReason === null
           : false;
   const actorBound = request.action === "evidence_submit"
     ? request.actorId === "claimant-demo"
     : request.actorId === "staff-demo";
-  if (!common || !actionBound || !actorBound) throw new DomainError(errorCode);
+  if (
+    !actionBound
+    || !actorBound
+    || typeof request.expectedClaimId !== "string"
+    || request.expectedClaimId !== result.claimId
+  ) throw new DomainError(errorCode);
   return result as IdempotencyResult;
 }
 

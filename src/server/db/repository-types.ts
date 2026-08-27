@@ -193,6 +193,7 @@ export type IdempotencyRequest = {
   action: IdempotencyAction;
   idempotencyKey: string;
   requestFingerprint: string;
+  expectedClaimId?: string;
 };
 
 export type ConsumeActionNonceInput = {

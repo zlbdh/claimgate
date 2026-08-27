@@ -154,12 +154,12 @@ describe("manual evidence and Staff route boundaries", () => {
   it("approves through the separate Staff route and rejects duplicate/extra form fields", async () => {
     const value = setup();
     testDatabase!.database.prepare(`
-      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1
+      UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1, version = version + 1
       WHERE demo_instance_id = ? AND id = ?
     `).run(value.instance.demoInstanceId, value.claim.claimId);
     const path = `/api/staff/claims/${value.claim.claimId}/approve`;
     const good = new URLSearchParams({
-      expectedClaimVersion: "1",
+      expectedClaimVersion: "2",
       expectedItemVersion: "1",
       idempotencyKey: "route-approve-0000001",
     }).toString();

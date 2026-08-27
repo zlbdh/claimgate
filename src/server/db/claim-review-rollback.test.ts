@@ -42,11 +42,13 @@ function setup() {
   testDatabase = createTestDatabase(NOW);
   const instance = testDatabase.repository.createDemoInstance();
   const item = testDatabase.repository.listServerInternalFoundItems(instance.demoInstanceId)[0]!;
-  const winner = createClaim(instance.demoInstanceId, item.inventoryItemId, "winner");
+  const stagedWinner = createClaim(instance.demoInstanceId, item.inventoryItemId, "winner");
   const loser = createClaim(instance.demoInstanceId, item.inventoryItemId, "loser");
   testDatabase.database.prepare(`
-    UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1 WHERE id = ?
-  `).run(winner.claimId);
+    UPDATE claims SET status = 'UNDER_REVIEW', evidence_eligible = 1, version = version + 1
+    WHERE id = ?
+  `).run(stagedWinner.claimId);
+  const winner = { ...stagedWinner, version: stagedWinner.version + 1 };
   const keyring = createKeyring(Buffer.alloc(32, 7).toString("base64"));
   return {
     instance,
@@ -87,6 +89,9 @@ const INJECTIONS = {
   loser: `CREATE TRIGGER injected_loser BEFORE UPDATE OF rejection_reason ON claims
     WHEN NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
     BEGIN SELECT RAISE(ABORT, 'injected loser'); END`,
+  loser_ignore: `CREATE TRIGGER injected_loser_ignore BEFORE UPDATE OF rejection_reason ON claims
+    WHEN NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
+    BEGIN SELECT RAISE(IGNORE); END`,
   event: `CREATE TRIGGER injected_event BEFORE INSERT ON claim_events
     BEGIN SELECT RAISE(ABORT, 'injected event'); END`,
   idempotency: `CREATE TRIGGER injected_idempotency BEFORE INSERT ON idempotency_records
@@ -99,7 +104,7 @@ describe("claim approval aggregate rollback", () => {
     const before = snapshot();
     testDatabase!.database.exec(sql);
     expect(() => value.service.approve(value.staff, value.winner.claimId, {
-      expectedClaimVersion: 1,
+      expectedClaimVersion: value.winner.version,
       expectedItemVersion: value.item.version,
       idempotencyKey: `rollback-approve-${name}`,
     })).toThrow();
@@ -118,6 +123,31 @@ describe("claim approval aggregate rollback", () => {
       expectedVersion: 1,
       idempotencyKey: "rollback-evidence-event",
       answers: {},
+    })).toThrow();
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("rolls back when a trigger creates a new active Claim after the loser snapshot update", () => {
+    const value = setup();
+    const before = snapshot();
+    testDatabase!.database.exec(`
+      CREATE TRIGGER injected_active_after_loser
+      AFTER UPDATE OF rejection_reason ON claims
+      WHEN NEW.rejection_reason = 'ITEM_HELD_BY_ANOTHER_CLAIM'
+      BEGIN
+        INSERT INTO claims (
+          demo_instance_id, id, report_id, found_item_id, claimant_actor_id,
+          status, attempts, evidence_eligible, unlock_count, pass_generation, version
+        ) VALUES (
+          OLD.demo_instance_id, OLD.id || '-active', OLD.report_id, OLD.found_item_id,
+          OLD.claimant_actor_id, 'EVIDENCE_REQUIRED', 0, 0, OLD.unlock_count, 0, 1
+        );
+      END;
+    `);
+    expect(() => value.service.approve(value.staff, value.winner.claimId, {
+      expectedClaimVersion: value.winner.version,
+      expectedItemVersion: value.item.version,
+      idempotencyKey: "rollback-final-active",
     })).toThrow();
     expect(snapshot()).toEqual(before);
   });
