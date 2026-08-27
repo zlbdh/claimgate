@@ -27,7 +27,7 @@ export function createDemoInstance(context: RepositoryContext): DemoInstance {
         public_tags_json, public_description, status, version
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', 1)
     `);
-    const saltState = { sources: new Set<Buffer>(), values: new Set<string>() };
+    const saltState = { sources: new WeakSet<object>(), values: new Set<string>() };
     for (const [seedIndex, item] of NORTHBRIDGE_FOUND_ITEM_SEEDS.entries()) {
       const itemId = context.randomId();
       insertItem.run(

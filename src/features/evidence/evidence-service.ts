@@ -7,6 +7,7 @@ import {
   type EvidenceSlot,
 } from "./evidence-digester";
 import { normalizeEvidence } from "./normalize-evidence";
+import { cloneStandardEvidenceBuffer } from "./standard-buffer";
 
 export type ServerInternalEvidenceSlot = Readonly<{
   slot: EvidenceSlot;
@@ -96,12 +97,12 @@ function readPlainEntry(value: unknown): ServerInternalEvidenceSlot {
   if (
     typeof slot !== "string"
     || !EVIDENCE_SLOTS.includes(slot as EvidenceSlot)
-    || !Buffer.isBuffer(salt)
-    || salt.length !== 16
-    || !Buffer.isBuffer(digest)
-    || digest.length !== 32
   ) configurationError();
-  return { slot: slot as EvidenceSlot, salt: Buffer.from(salt), digest: Buffer.from(digest) };
+  return {
+    slot: slot as EvidenceSlot,
+    salt: cloneStandardEvidenceBuffer(salt, 16),
+    digest: cloneStandardEvidenceBuffer(digest, 32),
+  };
 }
 
 function readStoredSlots(value: unknown): ServerInternalEvidenceSlot[] {
@@ -152,18 +153,22 @@ function verifyWithComparator(
   if (input.priorFailedAttempts === 3) return OUTCOMES.locked;
   const slots = readStoredSlots(input.storedSlots);
   const answers = readAnswers(input.answers);
-  const computed = slots.map(({ slot, salt }) => input.digester.digest({
-      demoInstanceId: input.demoInstanceId,
-      itemId: input.itemId,
-      slot,
-      salt,
-      value: answers.get(slot) ?? "ClaimGate missing evidence value",
-    }));
-  if (computed.some((digest) => !Buffer.isBuffer(digest) || digest.length !== 32)) {
-    configurationError();
-  }
+  const untrustedComputed = slots.map(({ slot, salt }) => {
+    try {
+      return input.digester.digest({
+        demoInstanceId: input.demoInstanceId,
+        itemId: input.itemId,
+        slot,
+        salt,
+        value: answers.get(slot) ?? "ClaimGate missing evidence value",
+      }) as unknown;
+    } catch {
+      return undefined;
+    }
+  });
+  const computed = untrustedComputed.map((digest) => cloneStandardEvidenceBuffer(digest, 32));
   const matches = slots.map(({ slot, digest }, index) => {
-    const equal = comparator.equal(Buffer.from(computed[index]!), digest);
+    const equal = comparator.equal(computed[index]!, digest);
     if (typeof equal !== "boolean") configurationError();
     return answers.has(slot) && equal;
   });

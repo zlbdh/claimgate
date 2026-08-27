@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHmac } from "node:crypto";
 import { DomainError } from "@/shared/domain-error";
 import { normalizeEvidence } from "./normalize-evidence";
+import { cloneStandardEvidenceBuffer } from "./standard-buffer";
 
 export const EVIDENCE_SLOTS = Object.freeze([
   "unique_mark",
@@ -52,13 +53,13 @@ function lengthPrefix(value: Buffer): Buffer {
 function evidenceMessage(input: EvidenceDigestInput): Buffer {
   if (!input || typeof input !== "object") configurationError();
   if (!EVIDENCE_SLOTS.includes(input.slot)) configurationError();
-  if (!Buffer.isBuffer(input.salt) || input.salt.length !== SALT_BYTES) configurationError();
+  const salt = cloneStandardEvidenceBuffer(input.salt, SALT_BYTES);
   const fields = [
     PURPOSE,
     contextText(input.demoInstanceId),
     contextText(input.itemId),
     Buffer.from(input.slot, "utf8"),
-    Buffer.from(input.salt),
+    salt,
     Buffer.from(normalizeEvidence(input.value), "utf8"),
   ];
   return Buffer.concat(fields.map(lengthPrefix));
@@ -69,8 +70,7 @@ function evidenceMessage(input: EvidenceDigestInput): Buffer {
  * This is not password hashing, database encryption, or protection after server-key compromise.
  */
 export function createEvidenceDigester(evidenceKey: unknown): EvidenceDigester {
-  if (!Buffer.isBuffer(evidenceKey) || evidenceKey.length !== KEY_BYTES) configurationError();
-  const privateKey = Buffer.from(evidenceKey);
+  const privateKey = cloneStandardEvidenceBuffer(evidenceKey, KEY_BYTES);
   return Object.freeze({
     digest(input: EvidenceDigestInput): Buffer {
       return Buffer.from(createHmac("sha256", privateKey).update(evidenceMessage(input)).digest());

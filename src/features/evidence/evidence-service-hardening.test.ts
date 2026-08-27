@@ -1,6 +1,10 @@
 import { Buffer } from "node:buffer";
 import { timingSafeEqual } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  ADVERSARIAL_BUFFER_KINDS,
+  adversarialBuffer,
+} from "@/test/adversarial-buffer";
 
 import {
   createEvidenceDigester,
@@ -191,6 +195,72 @@ describe("descriptor-first containers", () => {
       );
     }
     expect(invocations).toBe(0);
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("stored salt/digest 拒绝 %s Buffer 且零陷阱", (kind) => {
+    for (const field of ["salt", "digest"] as const) {
+      const counter = { count: 0 };
+      const malicious = adversarialBuffer(kind, field === "salt" ? 16 : 32, counter);
+      const entry = { ...storedSlots[0], [field]: malicious };
+      expect(() => verifyWith({ slots: [entry, storedSlots[1], storedSlots[2]] })).toThrow(
+        expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+      );
+      expect(counter.count).toBe(0);
+      expect(compareCalls).toHaveLength(0);
+    }
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("computed digest 拒绝 %s Buffer 且零陷阱", (kind) => {
+    const counter = { count: 0 };
+    const digester = Object.freeze({
+      digest: () => adversarialBuffer(kind, 32, counter),
+    }) satisfies EvidenceDigester;
+    expect(() => verifyWith({ answers: expectedAnswers, digester })).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    expect(counter.count).toBe(0);
+    expect(compareCalls).toHaveLength(0);
+  });
+
+  it("stored/computed Uint8Array 均有界拒绝", () => {
+    const entry = { ...storedSlots[0], salt: new Uint8Array(16) };
+    expect(() => verifyWith({ slots: [entry, storedSlots[1], storedSlots[2]] })).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    const digester = Object.freeze({ digest: () => new Uint8Array(32) as never });
+    expect(() => verifyWith({ answers: expectedAnswers, digester })).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+  });
+
+  it("比较器只接收 stored/computed 的 fresh standard clone", () => {
+    const computedSource = Buffer.alloc(32, 71);
+    const storedSources = EVIDENCE_SLOTS.map((slot, index) => ({
+      slot,
+      salt: Buffer.alloc(16, index + 1),
+      digest: Buffer.alloc(32, 72 + index),
+    }));
+    const received: Buffer[] = [];
+    const verifier = createEvidenceVerifier(Object.freeze({
+      equal(left: Buffer, right: Buffer) {
+        received.push(left, right);
+        left.fill(0);
+        right.fill(0);
+        return false;
+      },
+    }));
+    verifier({
+      digester: Object.freeze({ digest: () => computedSource }),
+      demoInstanceId: "instance-hardening",
+      itemId: "item-hardening",
+      storedSlots: storedSources,
+      answers: {},
+      priorFailedAttempts: 0,
+    });
+    expect(computedSource).toEqual(Buffer.alloc(32, 71));
+    expect(storedSources.map(({ digest }) => digest[0])).toEqual([72, 73, 74]);
+    expect(new Set(received).size).toBe(6);
+    expect(received.every((value) => Object.getPrototypeOf(value) === Buffer.prototype)).toBe(true);
   });
 });
 

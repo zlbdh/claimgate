@@ -2,6 +2,10 @@ import { Buffer } from "node:buffer";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEvidenceDigester } from "@/features/evidence/evidence-digester";
 import { createKeyring } from "@/server/security/keyring";
+import {
+  ADVERSARIAL_BUFFER_KINDS,
+  adversarialBuffer,
+} from "@/test/adversarial-buffer";
 import { openDatabaseConnection } from "./connection";
 import { createRepository } from "./repository";
 import { createTestDatabase, TEST_MASTER_KEY, type TestDatabase } from "./test-harness";
@@ -148,5 +152,59 @@ describe("evidence salt source boundary", () => {
       .toEqual({ count: 7 });
     expect(testDatabase.database.prepare("SELECT COUNT(*) AS count FROM item_evidence_slots").get())
       .toEqual({ count: 21 });
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("random source 拒绝 %s Buffer、零陷阱并整笔回滚", (kind) => {
+    testDatabase = createTestDatabase();
+    const counter = { count: 0 };
+    const repository = createRepository({
+      database: testDatabase.database,
+      evidenceDigester: evidenceDigester(),
+      randomBytes: () => adversarialBuffer(kind, 16, counter),
+    });
+    expect(() => repository.createDemoInstance()).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    expect(counter.count).toBe(0);
+    expect(testDatabase.database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get())
+      .toEqual({ count: 0 });
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("digester 拒绝 %s Buffer、零陷阱并整笔回滚", (kind) => {
+    testDatabase = createTestDatabase();
+    const counter = { count: 0 };
+    const repository = createRepository({
+      database: testDatabase.database,
+      evidenceDigester: Object.freeze({
+        digest: () => adversarialBuffer(kind, 32, counter),
+      }),
+      randomBytes: deterministicRandomBytes(),
+    });
+    expect(() => repository.createDemoInstance()).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    expect(counter.count).toBe(0);
+    expect(testDatabase.database.prepare("SELECT COUNT(*) AS count FROM demo_instances").get())
+      .toEqual({ count: 0 });
+  });
+
+  it("random/digester 拒绝 Uint8Array", () => {
+    testDatabase = createTestDatabase();
+    for (const repository of [
+      createRepository({
+        database: testDatabase.database,
+        evidenceDigester: evidenceDigester(),
+        randomBytes: () => new Uint8Array(16) as never,
+      }),
+      createRepository({
+        database: testDatabase.database,
+        evidenceDigester: Object.freeze({ digest: () => new Uint8Array(32) as never }),
+        randomBytes: deterministicRandomBytes(),
+      }),
+    ]) {
+      expect(() => repository.createDemoInstance()).toThrow(
+        expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+      );
+    }
   });
 });

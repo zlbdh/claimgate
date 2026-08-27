@@ -123,11 +123,15 @@ describe("隔离演示实例与种子", () => {
       );
       expect(slots.map(({ slot }) => slot)).toEqual(EVIDENCE_SLOTS);
       const originalSalt = Buffer.from(slots[0]!.salt);
+      const originalDigest = Buffer.from(slots[0]!.digest);
       slots[0]!.salt.fill(0);
-      expect(repository.listServerInternalEvidenceSlots(
+      slots[0]!.digest.fill(0);
+      const reread = repository.listServerInternalEvidenceSlots(
         first.demoInstanceId,
         item.inventoryItemId,
-      )[0]!.salt).toEqual(originalSalt);
+      )[0]!;
+      expect(reread.salt).toEqual(originalSalt);
+      expect(reread.digest).toEqual(originalDigest);
     }
 
     const matches = findMatches(

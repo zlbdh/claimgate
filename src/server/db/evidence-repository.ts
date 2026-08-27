@@ -1,9 +1,9 @@
-import { Buffer } from "node:buffer";
 import {
   EVIDENCE_SLOTS,
   type EvidenceSlot,
 } from "@/features/evidence/evidence-digester";
 import type { ServerInternalEvidenceSlot } from "@/features/evidence/evidence-service";
+import { cloneStandardEvidenceBuffer } from "@/features/evidence/standard-buffer";
 import { DomainError } from "@/shared/domain-error";
 import { activeInstance, requireText } from "./repository-internal";
 import type { RepositoryContext } from "./repository-types";
@@ -40,16 +40,12 @@ export function listServerInternalEvidenceSlots(
       typeof row.slot !== "string"
       || !EVIDENCE_SLOTS.includes(row.slot as EvidenceSlot)
       || bySlot.has(row.slot as EvidenceSlot)
-      || !Buffer.isBuffer(row.salt)
-      || row.salt.length !== 16
-      || !Buffer.isBuffer(row.digest)
-      || row.digest.length !== 32
     ) configurationError();
     const slot = row.slot as EvidenceSlot;
     bySlot.set(slot, Object.freeze({
       slot,
-      salt: Buffer.from(row.salt),
-      digest: Buffer.from(row.digest),
+      salt: cloneStandardEvidenceBuffer(row.salt, 16),
+      digest: cloneStandardEvidenceBuffer(row.digest, 32),
     }));
   }
   return EVIDENCE_SLOTS.map((slot) => bySlot.get(slot) ?? configurationError());

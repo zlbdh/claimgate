@@ -1,5 +1,9 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
+import {
+  ADVERSARIAL_BUFFER_KINDS,
+  adversarialBuffer,
+} from "@/test/adversarial-buffer";
 import { createEvidenceDigester, EVIDENCE_SLOTS } from "./evidence-digester";
 
 const KEY = Buffer.alloc(32, 17);
@@ -61,5 +65,40 @@ describe("用途隔离的 evidence HMAC", () => {
     () => createEvidenceDigester(KEY).digest({ ...BASE, itemId: "" }),
   ])("拒绝非 32-byte key、非 16-byte salt 与非法上下文", (operation) => {
     expect(operation).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("拒绝 %s evidence key，且不执行陷阱", (kind) => {
+    const counter = { count: 0 };
+    expect(() => createEvidenceDigester(adversarialBuffer(kind, 32, counter))).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    expect(counter.count).toBe(0);
+  });
+
+  it.each(ADVERSARIAL_BUFFER_KINDS)("拒绝 %s digest salt，且不执行陷阱", (kind) => {
+    const counter = { count: 0 };
+    expect(() => createEvidenceDigester(KEY).digest({
+      ...BASE,
+      salt: adversarialBuffer(kind, 16, counter),
+    })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
+    expect(counter.count).toBe(0);
+  });
+
+  it("拒绝 Uint8Array，并隔离调用方后续修改", () => {
+    expect(() => createEvidenceDigester(new Uint8Array(32) as never)).toThrow(
+      expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
+    );
+    expect(() => createEvidenceDigester(KEY).digest({
+      ...BASE,
+      salt: new Uint8Array(16) as never,
+    })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
+
+    const mutableKey = Buffer.alloc(32, 61);
+    const mutableSalt = Buffer.alloc(16, 62);
+    const digester = createEvidenceDigester(mutableKey);
+    const expected = digester.digest({ ...BASE, salt: mutableSalt });
+    mutableKey.fill(0);
+    mutableSalt.fill(0);
+    expect(digester.digest({ ...BASE, salt: Buffer.alloc(16, 62) })).toEqual(expected);
   });
 });

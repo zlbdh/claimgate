@@ -1,14 +1,14 @@
 import "server-only";
 
-import { Buffer } from "node:buffer";
 import type { EvidenceSlot } from "@/features/evidence/evidence-digester";
 import { EVIDENCE_SLOTS } from "@/features/evidence/evidence-digester";
+import { cloneStandardEvidenceBuffer } from "@/features/evidence/standard-buffer";
 import { DomainError } from "@/shared/domain-error";
 import type { RepositoryContext } from "./repository-types";
 
 type FictionalAnswers = Record<EvidenceSlot, string>;
 type EvidenceSaltState = {
-  sources: Set<Buffer>;
+  sources: WeakSet<object>;
   values: Set<string>;
 };
 
@@ -71,16 +71,17 @@ export function seedPrivateEvidenceForItem(
     ) VALUES (?, ?, ?, ?, ?)
   `);
   for (const slot of EVIDENCE_SLOTS) {
-    let generated: Buffer;
+    let generated: unknown;
     try {
       generated = context.randomBytes(16);
     } catch {
       configurationError();
     }
-    if (!Buffer.isBuffer(generated) || generated.length !== 16) configurationError();
-    if (saltState.sources.has(generated)) configurationError();
-    saltState.sources.add(generated);
-    const salt = Buffer.from(generated);
+    if (generated && typeof generated === "object") {
+      if (saltState.sources.has(generated)) configurationError();
+      saltState.sources.add(generated);
+    }
+    const salt = cloneStandardEvidenceBuffer(generated, 16);
     const saltKey = salt.toString("hex");
     if (saltState.values.has(saltKey)) configurationError();
     const existing = context.database.prepare(`
@@ -88,21 +89,27 @@ export function seedPrivateEvidenceForItem(
     `).get(salt);
     if (existing) configurationError();
     saltState.values.add(saltKey);
-    let digest: Buffer;
+    let digest: unknown;
     try {
       digest = context.evidenceDigester.digest({
         demoInstanceId,
         itemId,
         slot,
-        salt: Buffer.from(salt),
+        salt: cloneStandardEvidenceBuffer(salt, 16),
         value: answers[slot],
       });
     } catch {
       configurationError();
     }
-    if (!Buffer.isBuffer(digest) || digest.length !== 32) configurationError();
+    const safeDigest = cloneStandardEvidenceBuffer(digest, 32);
     try {
-      insert.run(demoInstanceId, itemId, slot, salt, Buffer.from(digest));
+      insert.run(
+        demoInstanceId,
+        itemId,
+        slot,
+        cloneStandardEvidenceBuffer(salt, 16),
+        cloneStandardEvidenceBuffer(safeDigest, 32),
+      );
     } catch {
       configurationError();
     }
