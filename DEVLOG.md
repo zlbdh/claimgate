@@ -66,3 +66,13 @@
 - schema 版本提升到 v2。打开 v1 文件时，必须先用 v1 metadata authenticator 验证配置密钥，再在同一 `BEGIN IMMEDIATE` 内升级。
 - ClaimGate 尚未部署，业务数据仅为可丢弃的两小时 demo；v1→v2 因此按依赖顺序删除并重建所有业务表，不复制旧 demo 行。迁移保留数据库 UUID 与 key-check salt，完成 v2 schema 和 `foreign_key_check` 后才写入 v2 authenticator。
 - 任一步骤失败会回滚全部 DDL、业务行和 metadata；错误密钥、未知版本或不完整 schema 均失败关闭，不自动接管数据库。
+
+## 2026-08-27 [Task 9：九工具动态 WebMCP 与只读 API]
+
+- **记录**：2026-08-27 19:59 by Codex — 记录 Chrome 151 兼容、状态工具注销和输出预算的阶段性结论，防止 Task 10/11 回归。
+- **改动**：四工具扩展为九工具；新增 Claim 状态、领取说明、Staff 队列与审核摘要四个认证 GET；Claimant/Staff 页面按角色、页面和状态动态注册工具；活动流展示最近 20 条工具的开始/结束时间。
+- **决策**：发布、归档、私密举证、批准/拒绝/解锁、领取码签发/重签、角色切换和交接继续只允许人工完成，不注册 WebMCP 工具。
+- **兼容性**：Chrome 151 在工具注销时仍可能影响执行中调用，所以写工具先返回规范结果，再在下一 macrotask 导航/刷新；所有候选、导航、刷新和活动副作用均受页面 generation 门保护。
+- **安全边界**：工具运行时再次 strict parse；嵌套 JSON Schema 全部拒绝额外字段；单次工具结果按实际 JSON 序列化不超过 1,500 字符；HTTP 响应最多流式读取 65,536 bytes，超限取消；公开描述、时间线和报告列表只返回最小白名单摘要。
+- **踩坑**：仅在客户端过滤 50 条完整报告会使合法 UTF-8 响应超过读取上限；修为服务端 canonical `status/limit` 过滤并只返回摘要。候选重新查询失败若不清旧结果，会让 `stage_claim_candidate` 错误滞留；失败路径现在 generation-safe 清理并按状态刷新。
+- **验证**：提交 `4ffc6dca8f2362d7e2cc23c58802e9a9e85d3fb1`；完整 `verify` 连续两轮通过（103 files / 921 tests）；生产 Playwright 4/4；Chrome 151 原生 13 阶段全部九工具真实执行、annotations 精确、Home 最终 `[]`；无配置生产接口返回 93-byte 规范 500 且无泄漏；服务端与 WebMCP 独立复审均为 PASS。
