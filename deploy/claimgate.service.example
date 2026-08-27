@@ -1,0 +1,72 @@
+[Unit]
+Description=ClaimGate standalone web application
+Documentation=https://ds.zlbdh.top:8443
+Wants=network.target
+After=network.target
+ConditionPathIsDirectory=/opt/claimgate/current
+ConditionPathIsDirectory=/opt/claimgate/runtime/current
+ConditionPathExists=/etc/claimgate/claimgate.env
+
+[Service]
+Type=simple
+User=claimgate
+Group=claimgate
+WorkingDirectory=/opt/claimgate/current
+EnvironmentFile=/etc/claimgate/claimgate.env
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=18121
+Environment=NODE_OPTIONS=--max-old-space-size=256
+ExecStartPre=/usr/bin/test -r /opt/claimgate/current/server.js
+ExecStartPre=/usr/bin/test -x /opt/claimgate/runtime/current/bin/node
+ExecStartPre=/usr/bin/test -d /var/lib/claimgate
+ExecStartPre=/usr/bin/test -w /opt/claimgate/current/.next/cache
+ExecStart=/opt/claimgate/runtime/current/bin/node /opt/claimgate/current/server.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+UMask=0077
+
+# The process can read its immutable release and write only its private state.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectHostname=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/opt/claimgate
+ReadWritePaths=/var/lib/claimgate
+ReadWritePaths=/opt/claimgate/current/.next/cache
+StateDirectory=claimgate
+StateDirectoryMode=0750
+
+# Bound both V8 and the complete unit. The kernel limit remains authoritative.
+MemoryAccounting=true
+MemoryHigh=320M
+MemoryMax=384M
+TasksMax=128
+LimitNOFILE=4096
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claimgate
+
+[Install]
+WantedBy=multi-user.target

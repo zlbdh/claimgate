@@ -6,6 +6,9 @@ test-results/
 playwright-report/
 *.log
 *.tsbuildinfo
+__pycache__/
+*.pyc
+release-out/
 .env*
 !.env.example
 data/*.db

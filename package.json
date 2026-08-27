@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:deployment:linux": "node scripts/run-deployment-integration.mjs",
+    "verify:deployment": "npm run test:deployment:linux",
     "probe:native": "tsx scripts/verify-native-webmcp.ts",
     "accept:native:3": "npm run build && tsx scripts/run-native-acceptance.ts",
     "accept:native:3:clean": "npm run build && tsx scripts/run-native-acceptance.ts --require-clean",

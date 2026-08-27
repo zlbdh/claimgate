@@ -1,0 +1,15 @@
+# Install this dedicated HTTP-only vhost before certificate issuance.
+server {
+    listen 80;
+    server_name ds.zlbdh.top;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/claimgate-acme;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 404;
+    }
+}
