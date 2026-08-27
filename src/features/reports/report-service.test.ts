@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createKeyring } from "@/server/security/keyring";
 import { createTestDatabase, type TestDatabase } from "@/server/db/test-harness";
 import { createReportService } from "./report-service";
@@ -183,5 +183,54 @@ describe("ReportService business boundary", () => {
     service.archive(context, draft.reportId, 2);
     expect(() => service.resolveCandidate(context, draft.reportId, third.candidateHandle))
       .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
+  });
+
+  it("preflights malformed and expired handles before any report or inventory transaction", () => {
+    const { service, context } = setup();
+    const draft = service.createDraft(context, draftInput());
+    const archived = service.createDraft(context, draftInput("idem-create-archived"));
+    service.archive(context, archived.reportId, 1);
+    const transaction = vi.spyOn(testDatabase!.repository, "withTransaction");
+    const nowSeconds = Math.floor(NOW / 1_000);
+    const expired = `cgch1.${nowSeconds - 900}.${nowSeconds}.${"A".repeat(43)}`;
+
+    for (const reportId of ["missing-report", draft.reportId, archived.reportId]) {
+      transaction.mockClear();
+      expect(() => service.resolveCandidate(context, reportId, "bad"))
+        .toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
+      expect(transaction).not.toHaveBeenCalled();
+    }
+    transaction.mockClear();
+    expect(() => service.resolveCandidate(context, "missing-report", expired))
+      .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("reads the handle clock once, then snapshots a valid-shape tamper", () => {
+    testDatabase = createTestDatabase(NOW);
+    const instance = testDatabase.repository.createDemoInstance();
+    const clock = vi.fn(() => NOW);
+    const service = createReportService({
+      repository: testDatabase.repository,
+      keyring: createKeyring(Buffer.alloc(32, 7).toString("base64")),
+      now: clock,
+    });
+    const context = {
+      demoInstanceId: instance.demoInstanceId,
+      actorId: "claimant-demo" as const,
+      sessionExpiresAt: instance.expiresAtMs,
+    };
+    const draft = service.createDraft(context, draftInput());
+    service.publish(context, draft.reportId, 1);
+    const candidate = service.findCandidates(context, draft.reportId, 1).candidates[0]!;
+    const parts = candidate.candidateHandle.split(".");
+    parts[3] = `${parts[3]![0] === "A" ? "B" : "A"}${parts[3]!.slice(1)}`;
+    clock.mockClear();
+    const transaction = vi.spyOn(testDatabase.repository, "withTransaction");
+
+    expect(() => service.resolveCandidate(context, draft.reportId, parts.join(".")))
+      .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
+    expect(clock).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledOnce();
   });
 });

@@ -9,6 +9,7 @@ import type {
 import { findMatches } from "@/features/matching/match-service";
 import {
   mintCandidateHandles,
+  preflightCandidateHandle,
   resolveCandidateHandle,
 } from "@/features/matching/candidate-handle";
 import type { FoundItem } from "@/features/inventory/found-item";
@@ -239,17 +240,18 @@ export function createReportService(dependencies: {
     },
 
     resolveCandidate(context: ReportActorContext, reportId: string, handle: string): string {
+      const nowMs = now();
+      const preflight = preflightCandidateHandle({ handle, nowMs });
       const current = snapshot(context, reportId, true);
       return resolveCandidateHandle({
         key: dependencies.keyring.getKey("candidate-handle"),
-        nowMs: now(),
         ceilingMs: Math.min(context.sessionExpiresAt, current.instanceExpiresAt),
         demoInstanceId: context.demoInstanceId,
         reportId,
         reportVersion: current.report.version,
         catalogVersion: current.catalogVersion,
         inventoryItemIds: current.matches.map((match) => match.inventoryItemId),
-        handle,
+        preflight,
       });
     },
   });

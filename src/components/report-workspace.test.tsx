@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
 import { performSameOriginWrite } from "@/server/http/same-origin-write";
 import { CandidateCard } from "./candidate-card";
 import { CandidateFinder } from "./candidate-finder";
@@ -117,4 +118,144 @@ describe("Claimant report workspace components", () => {
     expect((input.body as URLSearchParams).get("expectedVersion")).toBe("4");
     expect((input.body as URLSearchParams).get("idempotencyKey")).toMatch(/^[A-Fa-f0-9-]{36}$/);
   });
+
+  it("preserves the original ISO instants byte-for-byte when local time fields are unchanged", async () => {
+    const writer = vi.fn<typeof performSameOriginWrite>(async () => (
+      Response.json({ nextPath: "/claimant/reports/report-public" })
+    ));
+    const report = reportFixture();
+    report.timeWindow = {
+      from: "2026-08-25T17:00:37.123Z",
+      to: "2026-08-25T19:00:58.456Z",
+    };
+    render(<ReportUpdateForm csrfToken="csrf" report={report} writer={writer} onNavigate={vi.fn()} />);
+    fireEvent.submit(screen.getByRole("form"));
+    await waitFor(() => expect(writer).toHaveBeenCalledOnce());
+    const body = writer.mock.calls[0]![0].body as URLSearchParams;
+    expect(body.get("timeFrom")).toBe(report.timeWindow.from);
+    expect(body.get("timeTo")).toBe(report.timeWindow.to);
+  });
+
+  it("keeps SSR datetime-local values timezone-neutral until browser hydration", () => {
+    const html = renderToString(<ReportUpdateForm
+      csrfToken="csrf"
+      report={reportFixture()}
+      writer={vi.fn()}
+      onNavigate={vi.fn()}
+    />);
+    expect(html).toMatch(/name="timeFrom"[^>]*value=""/);
+    expect(html).toMatch(/name="timeTo"[^>]*value=""/);
+  });
+
+  it("blocks rapid double create submit synchronously", () => {
+    const deferred = deferredWriter("/claimant/reports/r1");
+    render(<ReportCreateForm csrfToken="csrf" writer={deferred.writer} onNavigate={vi.fn()} />);
+    fillCreateInputs();
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    deferred.resolve();
+    expect(deferred.writer).toHaveBeenCalledOnce();
+  });
+
+  it("blocks rapid double update submit synchronously", () => {
+    const deferred = deferredWriter("/claimant/reports/report-public");
+    render(<ReportUpdateForm csrfToken="csrf" report={reportFixture()} writer={deferred.writer} onNavigate={vi.fn()} />);
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    deferred.resolve();
+    expect(deferred.writer).toHaveBeenCalledOnce();
+  });
+
+  it("rotates the create key when the normalized business intent changes", async () => {
+    const keys: string[] = [];
+    const writer = rejectingKeyWriter(keys);
+    render(<ReportCreateForm csrfToken="csrf" writer={writer} />);
+    fillCreateInputs();
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("Color"), { target: { value: "navy" } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledTimes(2));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it("rotates the update key when the normalized business intent changes", async () => {
+    const keys: string[] = [];
+    const writer = rejectingKeyWriter(keys);
+    render(<ReportUpdateForm csrfToken="csrf" report={reportFixture()} writer={writer} />);
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("Color"), { target: { value: "navy" } });
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledTimes(2));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it("clears the create intent key after a confirmed success", async () => {
+    const keys: string[] = [];
+    const writer = successfulKeyWriter(keys, "/claimant/reports/r1");
+    render(<ReportCreateForm csrfToken="csrf" writer={writer} onNavigate={vi.fn()} />);
+    fillCreateInputs();
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledOnce());
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledTimes(2));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it("clears the update intent key after a confirmed success", async () => {
+    const keys: string[] = [];
+    const writer = successfulKeyWriter(keys, "/claimant/reports/report-public");
+    render(<ReportUpdateForm csrfToken="csrf" report={reportFixture()} writer={writer} onNavigate={vi.fn()} />);
+    const form = screen.getByRole("form");
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledOnce());
+    fireEvent.submit(form);
+    await waitFor(() => expect(writer).toHaveBeenCalledTimes(2));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
 });
+
+function fillCreateInputs() {
+  for (const [label, value] of [
+    ["Category", "earbuds"], ["From", "2026-08-25T17:00"], ["To", "2026-08-25T19:00"],
+    ["Area", "library"], ["Color", "black"], ["Public description", "Black earbud case."],
+  ]) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+}
+
+function reportFixture() {
+  return {
+    reportId: "report-public", category: "earbuds",
+    timeWindow: { from: "2026-08-25T17:00:00.000Z", to: "2026-08-25T19:00:00.000Z" },
+    area: "library", color: "black", publicTags: ["wireless"],
+    publicDescription: "Black earbud case.", status: "DRAFT" as const, version: 1,
+  };
+}
+
+function deferredWriter(nextPath: string) {
+  let resolve!: (response: Response) => void;
+  const pending = new Promise<Response>((done) => { resolve = done; });
+  return {
+    writer: vi.fn<typeof performSameOriginWrite>(() => pending),
+    resolve: () => resolve(Response.json({ nextPath })),
+  };
+}
+
+function rejectingKeyWriter(keys: string[]) {
+  return vi.fn<typeof performSameOriginWrite>(async (input) => {
+    keys.push((input.body as URLSearchParams).get("idempotencyKey")!);
+    throw new Error("response lost");
+  });
+}
+
+function successfulKeyWriter(keys: string[], nextPath: string) {
+  return vi.fn<typeof performSameOriginWrite>(async (input) => {
+    keys.push((input.body as URLSearchParams).get("idempotencyKey")!);
+    return Response.json({ nextPath });
+  });
+}

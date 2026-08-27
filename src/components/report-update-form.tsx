@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { PublicReportDto } from "@/features/reports/report-types";
+import { attachReportIntentKey, type ReportIntentRef } from "@/features/reports/report-client-intent";
+import {
+  formatIsoForDateTimeLocal,
+  resolveDateTimeLocalIso,
+} from "@/features/reports/report-local-time";
 import { performSameOriginWrite } from "@/server/http/same-origin-write";
 
 type ReportWriter = typeof performSameOriginWrite;
@@ -23,26 +28,41 @@ export function ReportUpdateForm({
 }: ReportUpdateFormProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const intentRef = useRef<ReportIntentRef["current"]>(undefined);
+  const inFlightRef = useRef(false);
+  const timeFromRef = useRef<HTMLInputElement>(null);
+  const timeToRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (timeFromRef.current) {
+      timeFromRef.current.value = formatIsoForDateTimeLocal(report.timeWindow.from);
+    }
+    if (timeToRef.current) {
+      timeToRef.current.value = formatIsoForDateTimeLocal(report.timeWindow.to);
+    }
+  }, [report.timeWindow.from, report.timeWindow.to]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setBusy(true);
     setError(undefined);
     const form = new FormData(event.currentTarget);
     try {
       const tags = String(form.get("publicDescriptors") ?? "")
         .split(",").map((tag) => tag.trim()).filter(Boolean);
-      const body = new URLSearchParams({
+      const businessBody = new URLSearchParams({
         expectedVersion: String(report.version),
         category: String(form.get("category") ?? ""),
-        timeFrom: new Date(String(form.get("timeFrom") ?? "")).toISOString(),
-        timeTo: new Date(String(form.get("timeTo") ?? "")).toISOString(),
+        timeFrom: resolveDateTimeLocalIso(String(form.get("timeFrom") ?? ""), report.timeWindow.from),
+        timeTo: resolveDateTimeLocalIso(String(form.get("timeTo") ?? ""), report.timeWindow.to),
         area: String(form.get("area") ?? ""),
         color: String(form.get("color") ?? ""),
         publicTags: JSON.stringify(tags),
         publicDescription: String(form.get("publicDescription") ?? ""),
-        idempotencyKey: crypto.randomUUID(),
       });
+      const body = attachReportIntentKey(businessBody, intentRef);
       const response = await writer({
         path: `/api/reports/${report.reportId}`,
         csrfToken,
@@ -52,10 +72,12 @@ export function ReportUpdateForm({
       if (!response.ok || result.nextPath !== `/claimant/reports/${report.reportId}`) {
         throw new Error("invalid response");
       }
+      intentRef.current = undefined;
       onNavigate(result.nextPath);
     } catch {
       setError("Changes could not be saved. Refresh the report and try again.");
     } finally {
+      inFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -64,8 +86,8 @@ export function ReportUpdateForm({
     <form className={`report-form ${className}`.trim()} aria-label="Update lost report draft" onSubmit={submit}>
       <div className="form-grid">
         <label>Category<input name="category" required maxLength={64} defaultValue={report.category} /></label>
-        <label>From<input name="timeFrom" type="datetime-local" required defaultValue={report.timeWindow.from.slice(0, 16)} /></label>
-        <label>To<input name="timeTo" type="datetime-local" required defaultValue={report.timeWindow.to.slice(0, 16)} /></label>
+        <label>From<input ref={timeFromRef} name="timeFrom" type="datetime-local" required defaultValue="" /></label>
+        <label>To<input ref={timeToRef} name="timeTo" type="datetime-local" required defaultValue="" /></label>
         <label>Area<input name="area" required maxLength={64} defaultValue={report.area} /></label>
         <label>Color<input name="color" required maxLength={64} defaultValue={report.color} /></label>
         <label className="wide-field">Public descriptors<input name="publicDescriptors" maxLength={256} defaultValue={report.publicTags.join(", ")} /></label>

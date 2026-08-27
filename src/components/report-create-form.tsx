@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { attachReportIntentKey, type ReportIntentRef } from "@/features/reports/report-client-intent";
+import { parseDateTimeLocalToIso } from "@/features/reports/report-local-time";
 import { performSameOriginWrite } from "@/server/http/same-origin-write";
 
 type ReportWriter = typeof performSameOriginWrite;
@@ -12,12 +14,6 @@ export interface ReportCreateFormProps {
   className?: string;
 }
 
-function isoTimestamp(value: string): string {
-  const date = new Date(value);
-  if (!value || Number.isNaN(date.valueOf())) throw new Error("invalid time");
-  return date.toISOString();
-}
-
 export function ReportCreateForm({
   csrfToken,
   writer = performSameOriginWrite,
@@ -26,34 +22,40 @@ export function ReportCreateForm({
 }: ReportCreateFormProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const intentRef = useRef<ReportIntentRef["current"]>(undefined);
+  const inFlightRef = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setBusy(true);
     setError(undefined);
     const form = new FormData(event.currentTarget);
     try {
       const tags = String(form.get("publicDescriptors") ?? "")
         .split(",").map((tag) => tag.trim()).filter(Boolean);
-      const body = new URLSearchParams({
+      const businessBody = new URLSearchParams({
         category: String(form.get("category") ?? ""),
-        timeFrom: isoTimestamp(String(form.get("timeFrom") ?? "")),
-        timeTo: isoTimestamp(String(form.get("timeTo") ?? "")),
+        timeFrom: parseDateTimeLocalToIso(String(form.get("timeFrom") ?? "")),
+        timeTo: parseDateTimeLocalToIso(String(form.get("timeTo") ?? "")),
         area: String(form.get("area") ?? ""),
         color: String(form.get("color") ?? ""),
         publicTags: JSON.stringify(tags),
         publicDescription: String(form.get("publicDescription") ?? ""),
-        idempotencyKey: crypto.randomUUID(),
       });
+      const body = attachReportIntentKey(businessBody, intentRef);
       const response = await writer({ path: "/api/reports", csrfToken, body });
       const result = await response.json() as { nextPath?: unknown };
       if (!response.ok || typeof result.nextPath !== "string" || !result.nextPath.startsWith("/claimant/reports/")) {
         throw new Error("invalid response");
       }
+      intentRef.current = undefined;
       onNavigate(result.nextPath);
     } catch {
       setError("The draft could not be saved. Review the public fields and try again.");
     } finally {
+      inFlightRef.current = false;
       setBusy(false);
     }
   }

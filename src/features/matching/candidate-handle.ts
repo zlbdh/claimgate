@@ -7,9 +7,8 @@ const HANDLE_PURPOSE = "ClaimGate/candidate-handle/cgch1";
 const MAX_HANDLE_LIFETIME_SECONDS = 900;
 const MAX_HANDLE_LENGTH = 96;
 
-type CandidateSnapshot = Readonly<{
+type CandidateBinding = Readonly<{
   key: Buffer;
-  nowMs: number;
   ceilingMs: number;
   demoInstanceId: string;
   reportId: string;
@@ -18,23 +17,24 @@ type CandidateSnapshot = Readonly<{
   inventoryItemIds: readonly string[];
 }>;
 
-type ParsedHandle = Readonly<{
+export type CandidateHandlePreflight = Readonly<{
   issuedAtSeconds: number;
   expiresAtSeconds: number;
   mac: Buffer;
 }>;
 
+const issuedPreflights = new WeakSet<object>();
+
 function validText(value: string): boolean {
   return typeof value === "string" && value.length > 0 && value.length <= 256;
 }
 
-function requireSnapshot(input: CandidateSnapshot): void {
+function requireBinding(input: CandidateBinding): void {
   if (
     !Buffer.isBuffer(input.key)
     || input.key.length !== 32
-    || !Number.isSafeInteger(input.nowMs)
-    || input.nowMs < 0
     || !Number.isSafeInteger(input.ceilingMs)
+    || input.ceilingMs < 0
     || !validText(input.demoInstanceId)
     || !validText(input.reportId)
     || !Number.isSafeInteger(input.reportVersion)
@@ -51,7 +51,7 @@ function lengthPrefixed(fields: readonly string[]): Buffer {
   return Buffer.from(fields.map((field) => `${Buffer.byteLength(field, "utf8")}:${field}`).join("|"), "utf8");
 }
 
-function computeMac(input: CandidateSnapshot, inventoryItemId: string, iat: number, exp: number): Buffer {
+function computeMac(input: CandidateBinding, inventoryItemId: string, iat: number, exp: number): Buffer {
   return createHmac("sha256", input.key).update(lengthPrefixed([
     HANDLE_PURPOSE,
     HANDLE_VERSION,
@@ -71,7 +71,7 @@ function parseCanonicalInteger(value: string): number | undefined {
   return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
-function parseHandle(handle: string): ParsedHandle {
+function parseHandle(handle: string): CandidateHandlePreflight {
   if (typeof handle !== "string" || handle.length > MAX_HANDLE_LENGTH) {
     throw new DomainError("VALIDATION_FAILED");
   }
@@ -92,8 +92,11 @@ function parseHandle(handle: string): ParsedHandle {
   return Object.freeze({ issuedAtSeconds: iat, expiresAtSeconds: exp, mac });
 }
 
-export function mintCandidateHandles(input: CandidateSnapshot): string[] {
-  requireSnapshot(input);
+export function mintCandidateHandles(input: CandidateBinding & { nowMs: number }): string[] {
+  requireBinding(input);
+  if (!Number.isSafeInteger(input.nowMs) || input.nowMs < 0) {
+    throw new DomainError("VALIDATION_FAILED");
+  }
   const issuedAtSeconds = Math.floor(input.nowMs / 1_000);
   const expiresAtSeconds = Math.min(
     issuedAtSeconds + MAX_HANDLE_LIFETIME_SECONDS,
@@ -106,8 +109,13 @@ export function mintCandidateHandles(input: CandidateSnapshot): string[] {
   });
 }
 
-export function resolveCandidateHandle(input: CandidateSnapshot & { handle: string }): string {
-  requireSnapshot(input);
+export function preflightCandidateHandle(input: {
+  handle: string;
+  nowMs: number;
+}): CandidateHandlePreflight {
+  if (!Number.isSafeInteger(input.nowMs) || input.nowMs < 0) {
+    throw new DomainError("VALIDATION_FAILED");
+  }
   const parsed = parseHandle(input.handle);
   const nowSeconds = Math.floor(input.nowMs / 1_000);
   if (
@@ -115,20 +123,29 @@ export function resolveCandidateHandle(input: CandidateSnapshot & { handle: stri
     || parsed.expiresAtSeconds - parsed.issuedAtSeconds > MAX_HANDLE_LIFETIME_SECONDS
     || parsed.issuedAtSeconds > nowSeconds
   ) throw new DomainError("VALIDATION_FAILED");
-  if (
-    nowSeconds >= parsed.expiresAtSeconds
-    || parsed.expiresAtSeconds > Math.floor(input.ceilingMs / 1_000)
-  ) throw new DomainError("STATE_CHANGED");
+  if (nowSeconds >= parsed.expiresAtSeconds) throw new DomainError("STATE_CHANGED");
+  issuedPreflights.add(parsed);
+  return parsed;
+}
+
+export function resolveCandidateHandle(input: CandidateBinding & {
+  preflight: CandidateHandlePreflight;
+}): string {
+  requireBinding(input);
+  if (!issuedPreflights.has(input.preflight)) throw new DomainError("CONFIGURATION_ERROR");
+  if (input.preflight.expiresAtSeconds > Math.floor(input.ceilingMs / 1_000)) {
+    throw new DomainError("STATE_CHANGED");
+  }
 
   const matches: string[] = [];
   for (const inventoryItemId of input.inventoryItemIds) {
     const expected = computeMac(
       input,
       inventoryItemId,
-      parsed.issuedAtSeconds,
-      parsed.expiresAtSeconds,
+      input.preflight.issuedAtSeconds,
+      input.preflight.expiresAtSeconds,
     );
-    const matched = timingSafeEqual(parsed.mac, expected);
+    const matched = timingSafeEqual(input.preflight.mac, expected);
     if (matched) matches.push(inventoryItemId);
   }
   if (matches.length !== 1) throw new DomainError("STATE_CHANGED");

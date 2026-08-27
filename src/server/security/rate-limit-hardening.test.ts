@@ -45,8 +45,9 @@ describe("持久限流的封闭输入与时间高水位", () => {
   });
 
   it("只接受固定 action 矩阵与固定 actor 身份", () => {
-    const { test, instance } = setup();
-    const limiter = createPersistentRateLimiter({ database: test.database, now: () => Date.now() });
+    const now = Date.UTC(2026, 7, 26, 12);
+    const { test, instance } = setup(now);
+    const limiter = createPersistentRateLimiter({ database: test.database, now: () => now });
     for (const action of RATE_ACTIONS) {
       expect(limiter.consume({
         demoInstanceId: instance.demoInstanceId,

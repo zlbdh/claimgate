@@ -1,7 +1,11 @@
 import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import { DomainError } from "@/shared/domain-error";
-import { mintCandidateHandles, resolveCandidateHandle } from "./candidate-handle";
+import {
+  mintCandidateHandles,
+  preflightCandidateHandle,
+  resolveCandidateHandle,
+} from "./candidate-handle";
 
 const NOW_MS = Date.UTC(2026, 7, 26, 12);
 const KEY = Buffer.alloc(32, 41);
@@ -39,7 +43,18 @@ describe("opaque candidate handles", () => {
 
   it("recovers exactly one current Top-3 server identity", () => {
     const handles = mintCandidateHandles(base);
-    expect(resolveCandidateHandle({ ...base, handle: handles[1]! })).toBe("internal-seeded-B");
+    const preflight = preflightCandidateHandle({ handle: handles[1]!, nowMs: NOW_MS });
+    expect(resolveCandidateHandle({ ...base, preflight })).toBe("internal-seeded-B");
+  });
+
+  it("pure-preflights syntax/time without any snapshot inputs", () => {
+    const [handle] = mintCandidateHandles(base);
+    expect(preflightCandidateHandle({ handle: handle!, nowMs: NOW_MS })).toMatchObject({
+      issuedAtSeconds: Math.floor(NOW_MS / 1_000),
+      expiresAtSeconds: Math.floor(NOW_MS / 1_000) + 900,
+    });
+    expect(() => preflightCandidateHandle({ handle: "bad", nowMs: NOW_MS }))
+      .toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
   it.each([
@@ -50,7 +65,7 @@ describe("opaque candidate handles", () => {
     "cgch1.1.2." + "A".repeat(44),
     "cgch1.1.2." + "=".repeat(43),
   ])("rejects malformed/noncanonical syntax: %s", (handle) => {
-    expect(() => resolveCandidateHandle({ ...base, handle }))
+    expect(() => preflightCandidateHandle({ handle, nowMs: NOW_MS }))
       .toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
@@ -67,10 +82,12 @@ describe("opaque candidate handles", () => {
       { inventoryItemIds: ["internal-seeded-X", ...base.inventoryItemIds.slice(1)] },
     ];
     for (const patch of changed) {
-      expect(() => resolveCandidateHandle({ ...base, handle: handle!, ...patch }))
+      const candidate = patch.handle ?? handle!;
+      const preflight = preflightCandidateHandle({ handle: candidate, nowMs: NOW_MS });
+      expect(() => resolveCandidateHandle({ ...base, preflight, ...patch }))
         .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
     }
-    expect(() => resolveCandidateHandle({ ...base, handle: handle!, nowMs: NOW_MS + 900_000 }))
+    expect(() => preflightCandidateHandle({ handle: handle!, nowMs: NOW_MS + 900_000 }))
       .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
   });
 
@@ -82,10 +99,11 @@ describe("opaque candidate handles", () => {
       `cgch1.${iat}.${iat}.${mac}`,
       `cgch1.${iat}.${Number(iat) + 901}.${mac}`,
     ]) {
-      expect(() => resolveCandidateHandle({ ...base, handle }))
+      expect(() => preflightCandidateHandle({ handle, nowMs: NOW_MS }))
         .toThrow(expect.any(DomainError));
     }
-    expect(() => resolveCandidateHandle({ ...base, handle: valid!, ceilingMs: NOW_MS + 899_000 }))
+    const preflight = preflightCandidateHandle({ handle: valid!, nowMs: NOW_MS });
+    expect(() => resolveCandidateHandle({ ...base, preflight, ceilingMs: NOW_MS + 899_000 }))
       .toThrow(expect.objectContaining({ code: "STATE_CHANGED" }));
   });
 });
