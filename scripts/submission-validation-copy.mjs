@@ -17,7 +17,7 @@ const TOOL_NAMES = Object.freeze([
   "get_pickup_instructions", "list_pending_claims", "get_claim_review_summary",
 ]);
 const pending = (...parts) => parts.join("_");
-const PENDING_LOCATIONS = Object.freeze(Object.fromEntries([
+export const PENDING_LOCATIONS = Object.freeze(Object.fromEntries([
   [pending("CLAIMGATE", "PUBLIC", "URL", "PENDING"), ["README.md", "docs/submission/devpost.md"]],
   [pending("CLAIMGATE", "PUBLIC", "REPOSITORY", "PENDING"), ["README.md", "docs/submission/devpost.md"]],
   [pending("CLAIMGATE", "PUBLIC", "VIDEO", "PENDING"), ["README.md", "docs/submission/devpost.md"]],

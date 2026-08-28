@@ -14,7 +14,7 @@ async function failureCode(promise: Promise<unknown>): Promise<string | undefine
 
 describe("local submission validation", () => {
   it("rejects a missing required public document", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.delete("docs/submission/architecture.md");
 
     expect(await failureCode(validateLocalSubmission({
@@ -23,7 +23,7 @@ describe("local submission validation", () => {
   });
 
   it("rejects a README with a required section removed", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     const readme = files.get("README.md")!.toString("utf8")
       .replace("## Why WebMCP fits", "## Browser integration");
     files.set("README.md", Buffer.from(readme));
@@ -34,7 +34,7 @@ describe("local submission validation", () => {
   });
 
   it("rejects a demo script that no longer proves real tool discovery", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     const demoPath = "docs/submission/demo-script.md";
     files.set(demoPath, Buffer.from(files.get(demoPath)!.toString("utf8")
       .replace("in-app browser discovers native WebMCP tools", "browser uses assistance")));
@@ -49,7 +49,7 @@ describe("local submission validation", () => {
   });
 
   it("rejects an unapproved publication placeholder", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("README.md", Buffer.concat([
       files.get("README.md")!, Buffer.from(`\n${["CLAIMGATE", "PUBLIC", "EXTRA", "PENDING"].join("_")}\n`),
     ]));
@@ -60,7 +60,7 @@ describe("local submission validation", () => {
   });
 
   it("rejects every prepublish placeholder in final mode", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     expect(await failureCode(validateLocalSubmission({
       mode: "final", root: process.cwd(), io: localIo(files),
     }))).toBe("LOCAL_PLACEHOLDER");
@@ -70,7 +70,7 @@ describe("local submission validation", () => {
     [".env.local"], ["data/demo.db"], ["release/app.tar.gz"],
     ["notes/server-inventory-20260828.md"], ["keys/id_ed25519"],
   ])("rejects a forbidden public candidate path: %s", async (name) => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set(name, Buffer.from("not public\n"));
     expect(await failureCode(validateLocalSubmission({
       mode: "prepublish", root: process.cwd(), io: localIo(files),
@@ -78,7 +78,7 @@ describe("local submission validation", () => {
   });
 
   it("rejects an absolute path returned as a public candidate", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     const absolute = ["C:", "Users", "person", "leak.txt"].join("/");
     files.set(absolute, Buffer.from("public-looking\n"));
     expect(await failureCode(validateLocalSubmission({
@@ -93,7 +93,7 @@ describe("local submission validation", () => {
     ["src/config.ts", `export const apiSecret = "${"A1b2C3d4E5f6G7h8".repeat(3)}";\n`, "LOCAL_SECRET"],
     ["config/release.env.example", `CLAIMGATE_API_KEY=${"A1b2C3d4E5f6G7h8".repeat(3)}\n`, "LOCAL_SECRET"],
   ])("rejects private publication material in %s", async (name, content, code) => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set(name, Buffer.from(content));
 
     expect(await failureCode(validateLocalSubmission({
@@ -102,7 +102,7 @@ describe("local submission validation", () => {
   });
 
   it("accepts the reviewed local package in prepublish mode", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     await expect(validateLocalSubmission({
       mode: "prepublish", root: process.cwd(), io: localIo(files),
     })).resolves.toEqual(expect.objectContaining({ mode: "prepublish" }));

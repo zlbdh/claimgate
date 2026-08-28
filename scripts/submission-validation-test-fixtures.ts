@@ -1,6 +1,8 @@
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+// @ts-expect-error The validator intentionally remains dependency-free JavaScript.
+import { PENDING_LOCATIONS } from "./submission-validation-copy.mjs";
 
 export const PUBLIC_ENV = Object.freeze({
   CLAIMGATE_PUBLIC_URL: "https://demo.claimgate.dev",
@@ -19,15 +21,55 @@ export const REQUIRED_LOCAL_FILES = [
   "docs/submission/webmcp-probe.md",
 ] as const;
 
+export type LocalPublicationState = "final" | "prepublish";
+
 export const publicLookup = async () => [
   { address: ["93", "184", "216", "34"].join("."), family: 4 },
   { address: ["2606", "4700", "4700", "", "1111"].join(":"), family: 6 },
 ];
 
-export async function localCandidateFiles(): Promise<Map<string, Buffer>> {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function replaceTableValue(markdown: string, label: string, value: string): string {
+  const pattern = new RegExp(`(\\|\\s*${escapeRegExp(label)}\\s*\\|\\s*)(.*?)(\\s*\\|)`);
+  if (!pattern.test(markdown)) throw new Error(`missing fixture row: ${label}`);
+  return markdown.replace(pattern, `$1${value}$3`);
+}
+
+function placeholder(suffix: string): string {
+  const token = Object.keys(PENDING_LOCATIONS).find((value) => value === `CLAIMGATE_${suffix}_PENDING`);
+  if (!token) throw new Error(`missing fixture placeholder: ${suffix}`);
+  return token;
+}
+
+function asPrepublish(relative: typeof REQUIRED_LOCAL_FILES[number], text: string): string {
+  if (relative === "README.md") {
+    return [
+      ["Live demo", placeholder("PUBLIC_URL")],
+      ["Public repository", placeholder("PUBLIC_REPOSITORY")],
+      ["Public video", placeholder("PUBLIC_VIDEO")],
+    ].reduce((value, [label, token]) => replaceTableValue(value, label, `\`${token}\``), text);
+  }
+  if (relative === "docs/submission/devpost.md") {
+    return [
+      ["Try it out", placeholder("PUBLIC_URL")],
+      ["Code repository", placeholder("PUBLIC_REPOSITORY")],
+      ["Demo video", placeholder("PUBLIC_VIDEO")],
+      ["Gallery thumbnail", placeholder("GALLERY_THUMBNAIL")],
+      ["Gallery screenshots", placeholder("SCREENSHOTS")],
+    ].reduce((value, [label, token]) => replaceTableValue(value, label, `\`${token}\``), text);
+  }
+  return text;
+}
+
+export async function localCandidateFiles(state: LocalPublicationState): Promise<Map<string, Buffer>> {
   const files = new Map<string, Buffer>();
   for (const relative of REQUIRED_LOCAL_FILES) {
-    files.set(relative, await readFile(path.join(process.cwd(), relative)));
+    const source = await readFile(path.join(process.cwd(), relative));
+    const text = relative.endsWith(".md") ? source.toString("utf8") : undefined;
+    files.set(relative, Buffer.from(state === "prepublish" && text ? asPrepublish(relative, text) : source));
   }
   files.set("src/public-example.ts", Buffer.from("export const safe = true;\n"));
   return files;

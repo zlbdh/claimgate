@@ -22,7 +22,7 @@ async function validate(files: Map<string, Buffer>) {
 
 describe("secure public candidate filesystem", () => {
   it("rejects a candidate reported as a symbolic link before reading", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("notes/link.md", Buffer.from("safe text"));
     const io = localIo(files);
     io.inspectPublicFile = async (relative: string) => ({
@@ -49,7 +49,7 @@ describe("bounded candidate formats", () => {
     "bundle.zip", "bundle.7z", "bundle.rar", "bundle.tar", "bundle.gz", "bundle.xz",
     "state.db", "state.sqlite", "state.db.bak", "state.sqlite.backup",
   ])("rejects forbidden archive or database suffixes: %s", async (name) => {
-    const files = await localCandidateFiles(); files.set(`artifacts/${name}`, Buffer.from("text"));
+    const files = await localCandidateFiles("prepublish"); files.set(`artifacts/${name}`, Buffer.from("text"));
     expect(await code(validate(files))).toBe("LOCAL_FORBIDDEN_FILE");
   });
 
@@ -60,12 +60,12 @@ describe("bounded candidate formats", () => {
     ["notes/not-approved.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])],
     ["docs/submission/screenshots/bad.png", Buffer.from("not-png")],
   ])("rejects unknown binary, oversized, or unapproved image candidate: %s", async (name, body) => {
-    const files = await localCandidateFiles(); files.set(name, body);
+    const files = await localCandidateFiles("prepublish"); files.set(name, body);
     expect(await code(validate(files))).toBe("LOCAL_PUBLIC_FILE");
   });
 
   it("reads and scans an unknown UTF-8 extension instead of skipping it", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("notes/review.custom", Buffer.from(["D:", "workspace", "private.txt"].join("/")));
     expect(await code(validate(files))).toBe("LOCAL_PRIVATE_PATH");
   });
@@ -80,12 +80,12 @@ describe("private content detection", () => {
     ["ssh endpoint", ["ssh", ["deployer", "@", "prod", ".", "example", ".", "org"].join("")].join(" "), "LOCAL_SSH_ENDPOINT"],
     ["ssh endpoint with port", ["ssh", "-p", "2222", ["deployer", "@", "prod", ".", "example", ".", "org"].join("")].join(" "), "LOCAL_SSH_ENDPOINT"],
   ])("rejects %s", async (_label, content, expected) => {
-    const files = await localCandidateFiles(); files.set("notes/review.custom", Buffer.from(content));
+    const files = await localCandidateFiles("prepublish"); files.set("notes/review.custom", Buffer.from(content));
     expect(await code(validate(files))).toBe(expected);
   });
 
   it("allows canonical synthetic path canaries and variable SSH placeholders", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("tests/canary.custom", Buffer.from([
       "C:/secret.db", "C:/private.db", "C:/Windows", "ssh $deployment_user@$deployment_host",
     ].join("\n")));
@@ -97,7 +97,7 @@ describe("private content detection", () => {
     ["C:", "secret.db.backup"].join("/"),
     ["C:", "Program Files", "Git", "bin", "sh.exe", "..", "..", "escape"].join("/"),
   ])("does not allow a synthetic path as a prefix: %s", async (unsafe) => {
-    const files = await localCandidateFiles(); files.set("tests/bypass.custom", Buffer.from(unsafe));
+    const files = await localCandidateFiles("prepublish"); files.set("tests/bypass.custom", Buffer.from(unsafe));
     expect(await code(validate(files))).toBe("LOCAL_PRIVATE_PATH");
   });
 
@@ -108,12 +108,12 @@ describe("private content detection", () => {
     [["key", "="].join(""), ["xQmT", "zLpR"].join("")].join('"') + '"',
     [["encryption", "Secret="].join(""), ["kR7!", "pQ2@", "vN9#", "xL4$"].join("")].join('"') + '"',
   ])("rejects fuzzy-canary or high-entropy secret assignment: %s", async (unsafe) => {
-    const files = await localCandidateFiles(); files.set("tests/secret-bypass.custom", Buffer.from(unsafe));
+    const files = await localCandidateFiles("prepublish"); files.set("tests/secret-bypass.custom", Buffer.from(unsafe));
     expect(await code(validate(files))).toBe("LOCAL_SECRET");
   });
 
   it("allows only complete approved secret canary values", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("tests/approved-secret-canary.custom", Buffer.from([
       [["createCsrf", "Token="].join(""), ["closure", "create", "token"].join("-")].join('"') + '"',
       [["csrf", "Token="].join(""), "secret&targetRole=STAFF"].join('"') + '"',
@@ -127,7 +127,7 @@ describe("private content detection", () => {
     ["notes/leak.md", [["to", "ken="].join(""), ["QwEr", "TyUi"].join("")].join("")],
     ["config/leak.conf", [["signing", "Key: "].join(""), ["ZxCv", "BnMm"].join("")].join("")],
   ])("rejects an unquoted identifier-shaped secret in %s", async (name, unsafe) => {
-    const files = await localCandidateFiles(); files.set(name, Buffer.from(unsafe));
+    const files = await localCandidateFiles("prepublish"); files.set(name, Buffer.from(unsafe));
     expect(await code(validate(files))).toBe("LOCAL_SECRET");
   });
 
@@ -136,13 +136,13 @@ describe("private content detection", () => {
     [["SESSION_HMAC", "_KEY"].join(""), ["FgHj", "KlQw"].join("")],
     [["DATABASE_ENCRYPTION", "_KEY"].join(""), ["VbNm", "AsDf"].join("")],
   ])("rejects a prefixed semantic key name %s", async (keyName, secret) => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("config/prefixed.yaml", Buffer.from(`${keyName}: ${secret}`));
     expect(await code(validate(files))).toBe("LOCAL_SECRET");
   });
 
   it("does not treat an ordinary word ending in key letters as a secret name", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("config/ordinary.yaml", Buffer.from(`mon${"key"}: ${["AbCd", "EfGh"].join("")}`));
     await expect(validate(files)).resolves.toMatchObject({ mode: "prepublish" });
   });
@@ -153,12 +153,12 @@ describe("private content detection", () => {
     ["config/colon.conf", [["signing", "Key: "].join(""), ["Aa1", "bB2"].join(":"), "#cC3"].join("")],
     ["config/hash.yaml", [["SESSION_HMAC", "_KEY: "].join(""), ["Aa1", "bB2"].join("#"), ".cC3"].join("")],
   ])("rejects a complete punctuation-bearing unquoted secret in %s", async (name, unsafe) => {
-    const files = await localCandidateFiles(); files.set(name, Buffer.from(unsafe));
+    const files = await localCandidateFiles("prepublish"); files.set(name, Buffer.from(unsafe));
     expect(await code(validate(files))).toBe("LOCAL_SECRET");
   });
 
   it("allows complete JS/TS member-chain references for sensitive variables", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     files.set("src/member-canary.ts", Buffer.from([
       "const token = form.csrfToken;",
       "const signingKey = process.env.CLAIMGATE_SIGNING_KEY;",
@@ -168,7 +168,7 @@ describe("private content detection", () => {
   });
 
   it("scans TODO markers in every required document", async () => {
-    const files = await localCandidateFiles();
+    const files = await localCandidateFiles("prepublish");
     const target = "docs/submission/testing.md";
     files.set(target, Buffer.concat([files.get(target)!, Buffer.from("\nTODO publication gap\n")]));
     expect(await code(validate(files))).toBe("LOCAL_PLACEHOLDER");
