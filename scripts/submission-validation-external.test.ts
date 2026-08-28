@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createExternalFixture, externalFetch, playerHtml, publicLookup, PUBLIC_ENV, type ExternalFixture,
@@ -19,6 +20,14 @@ async function fixture(): Promise<ExternalFixture> {
 async function code(promise: Promise<unknown>): Promise<string | undefined> {
   try { await promise; } catch (error) { return (error as { code?: string }).code; }
   return undefined;
+}
+
+function lf(text: string): string {
+  return text.replace(/\r\n/g, "\n");
+}
+
+function crlf(text: string): string {
+  return lf(text).replace(/\n/g, "\r\n");
 }
 
 describe("live and GitHub final gates", () => {
@@ -117,6 +126,50 @@ describe("live and GitHub final gates", () => {
     const value = await fixture();
     const fetcher = externalFetch(value, {
       "https://raw.githubusercontent.com/claim-gate/claimgate/main/README.md": new Response("different"),
+    });
+    expect(await code(validateExternalSubmission({ root: value.root, env: value.env, fetch: fetcher, lookup: publicLookup })))
+      .toBe("FINAL_REPOSITORY_CONTENT");
+  });
+
+  it("accepts semantically identical README and LICENSE when only CRLF versus LF differs", async () => {
+    const value = await fixture();
+    await writeFile(`${value.root}/README.md`, crlf(value.readme));
+    await writeFile(`${value.root}/LICENSE`, crlf(value.license));
+    const fetcher = externalFetch(value, {
+      "https://raw.githubusercontent.com/claim-gate/claimgate/main/README.md": new Response(lf(value.readme)),
+      "https://raw.githubusercontent.com/claim-gate/claimgate/main/LICENSE": new Response(lf(value.license)),
+    });
+    await expect(validateExternalSubmission({ root: value.root, env: value.env, fetch: fetcher, lookup: publicLookup }))
+      .resolves.toEqual(expect.objectContaining({ externalChecks: 4 }));
+  });
+
+  it("still rejects a text difference such as an extra trailing line", async () => {
+    const value = await fixture();
+    await writeFile(`${value.root}/README.md`, crlf(value.readme));
+    const fetcher = externalFetch(value, {
+      "https://raw.githubusercontent.com/claim-gate/claimgate/main/README.md": new Response(`${lf(value.readme)}\nextra line\n`),
+    });
+    expect(await code(validateExternalSubmission({ root: value.root, env: value.env, fetch: fetcher, lookup: publicLookup })))
+      .toBe("FINAL_REPOSITORY_CONTENT");
+  });
+
+  it("rejects an orphan carriage return even when local and remote bytes match", async () => {
+    const value = await fixture();
+    const invalidText = Buffer.from("line 1\rline 2\n", "utf8");
+    await writeFile(`${value.root}/README.md`, invalidText);
+    const fetcher = externalFetch(value, {
+      "https://raw.githubusercontent.com/claim-gate/claimgate/main/README.md": new Response(invalidText),
+    });
+    expect(await code(validateExternalSubmission({ root: value.root, env: value.env, fetch: fetcher, lookup: publicLookup })))
+      .toBe("FINAL_REPOSITORY_CONTENT");
+  });
+
+  it("rejects invalid UTF-8 even when local and remote bytes match", async () => {
+    const value = await fixture();
+    const invalidUtf8 = Buffer.from([0xff, 0xfe, 0x41]);
+    await writeFile(`${value.root}/README.md`, invalidUtf8);
+    const fetcher = externalFetch(value, {
+      "https://raw.githubusercontent.com/claim-gate/claimgate/main/README.md": new Response(invalidUtf8),
     });
     expect(await code(validateExternalSubmission({ root: value.root, env: value.env, fetch: fetcher, lookup: publicLookup })))
       .toBe("FINAL_REPOSITORY_CONTENT");

@@ -84,6 +84,20 @@ export function parseJson(bytes, code) {
   try { return JSON.parse(decodeUtf8(bytes, code)); } catch { fail(code); }
 }
 
+function hasOrphanCarriageReturn(text) {
+  return /\r(?!\n)/.test(text);
+}
+
+function normalizedTextArtifact(bytes, code) {
+  const text = decodeUtf8(bytes, code);
+  if (hasOrphanCarriageReturn(text)) fail(code);
+  return text.replace(/\r\n/g, "\n");
+}
+
+export function sameTextArtifact(remoteBytes, localBytes, code) {
+  return normalizedTextArtifact(remoteBytes, code) === normalizedTextArtifact(localBytes, code);
+}
+
 function explicitDefaultPort(value) {
   const authority = value.match(/^https:\/\/([^/?#]+)/i)?.[1] ?? "";
   const port = authority.match(/(?:\]|[^:]):(\d+)$/)?.[1];

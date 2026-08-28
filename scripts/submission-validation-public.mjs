@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  decodeUtf8, fail, fetchBounded, parseJson, strictGitHubRepository, strictHttpsOrigin,
+  decodeUtf8, fail, fetchBounded, parseJson, sameTextArtifact, strictGitHubRepository, strictHttpsOrigin,
   strictYouTubeVideo,
 } from "./submission-validation-shared.mjs";
 import { assertPublicDns } from "./submission-validation-network.mjs";
@@ -54,8 +54,8 @@ async function validateRepository(fetcher, root, repositoryValue) {
     readFile(path.join(root, "LICENSE")),
   ]).catch(() => fail("FINAL_REPOSITORY_CONTENT"));
   if (remoteReadme.response.status !== 200 || remoteLicense.response.status !== 200
-    || Buffer.compare(Buffer.from(remoteReadme.bytes), localReadme) !== 0
-    || Buffer.compare(Buffer.from(remoteLicense.bytes), localLicense) !== 0) {
+    || !sameTextArtifact(remoteReadme.bytes, localReadme, "FINAL_REPOSITORY_CONTENT")
+    || !sameTextArtifact(remoteLicense.bytes, localLicense, "FINAL_REPOSITORY_CONTENT")) {
     fail("FINAL_REPOSITORY_CONTENT");
   }
 }
