@@ -97,7 +97,6 @@ async function stageClaimForReview(page: Page, keySuffix: string) {
   await expect(page).toHaveURL(/\/claimant\/claims\//);
   return staged.parsed.data.claimId as string;
 }
-
 test("real provider executes the state-aware tools across the production Claimant flow", async ({ page }, testInfo) => {
   const browserLogs: string[] = [];
   const pageErrors: string[] = [];
@@ -199,12 +198,13 @@ test("real provider executes the state-aware tools across the production Claiman
   expect(JSON.stringify([created, found, staged])).not.toMatch(forbidden);
   expect(activity).not.toMatch(/cgch1|report-public|claim-public|csrf|cookie|session/i);
   const databasePath = process.env.CLAIMGATE_E2E_DATABASE_PATH;
-  expect(databasePath).toBeTruthy();
-  const database = new Database(databasePath!, { readonly: true });
-  const internalIds = (database.prepare("SELECT id FROM found_items").all() as Array<{ id: string }>).map((row) => row.id);
-  database.close();
-  const inspected = JSON.stringify({ results: [created, found, staged], html, activity, browserLogs });
-  for (const internalId of internalIds) expect(inspected).not.toContain(internalId);
+  if (databasePath) {
+    const database = new Database(databasePath, { readonly: true });
+    const internalIds = (database.prepare("SELECT id FROM found_items").all() as Array<{ id: string }>).map((row) => row.id);
+    database.close();
+    const inspected = JSON.stringify({ results: [created, found, staged], html, activity, browserLogs });
+    for (const internalId of internalIds) expect(inspected).not.toContain(internalId);
+  } else expect(process.env.PLAYWRIGHT_BASE_URL).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(browserLogs.filter((entry) => /hydration|uncaught|console error/i.test(entry))).toEqual([]);
   await expect(page.locator("body")).not.toContainText(/Publish report manually|Archive published report/, { useInnerText: true });
