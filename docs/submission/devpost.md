@@ -19,7 +19,7 @@ decisions.
 | --- | --- |
 | Try it out | <https://ds.zlbdh.top:8443> |
 | Code repository | <https://github.com/zlbdh/claimgate> |
-| Demo video | <https://youtu.be/v3siwO314Aw> |
+| Demo video | <https://www.youtube.com/watch?v=v3siwO314Aw> |
 | Gallery thumbnail | `gallery-thumbnail-3x2.png` (uploaded to Devpost) |
 | Gallery screenshots | `gallery-01-candidates.png`, `gallery-02-staff-review.png`, `gallery-03-collected.png` (uploaded to Devpost) |
 

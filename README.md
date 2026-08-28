@@ -15,7 +15,7 @@ not by itself claim that the Devpost entry has been formally submitted.
 | --- | --- |
 | Live demo | <https://ds.zlbdh.top:8443> |
 | Public repository | <https://github.com/zlbdh/claimgate> |
-| Public video | <https://youtu.be/v3siwO314Aw> |
+| Public video | <https://www.youtube.com/watch?v=v3siwO314Aw> |
 
 This README does not claim that the project has been submitted yet.
 
