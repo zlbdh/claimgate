@@ -5,11 +5,21 @@ import { validateLocalSubmission } from "./submission-validation-local.mjs";
 // @ts-expect-error The CLI intentionally remains dependency-free JavaScript.
 import { runSubmissionCli } from "./validate-submission.mjs";
 // @ts-expect-error The validator intentionally remains dependency-free JavaScript.
-import { submissionSection } from "./submission-validation-copy.mjs";
+import { PENDING_LOCATIONS, submissionSection } from "./submission-validation-copy.mjs";
 
 async function failureCode(promise: Promise<unknown>): Promise<string | undefined> {
   try { await promise; } catch (error) { return (error as { code?: string }).code; }
   return undefined;
+}
+
+function approvedToken(suffix: string): string {
+  const token = Object.keys(PENDING_LOCATIONS).find((value) => value === `CLAIMGATE_${suffix}_PENDING`);
+  if (!token) throw new Error(`missing approved token: ${suffix}`);
+  return token;
+}
+
+function rewriteFile(files: Map<string, Buffer>, relative: string, rewrite: (text: string) => string) {
+  files.set(relative, Buffer.from(rewrite(files.get(relative)!.toString("utf8"))));
 }
 
 describe("local submission validation", () => {
@@ -66,6 +76,26 @@ describe("local submission validation", () => {
     }))).toBe("LOCAL_PLACEHOLDER");
   });
 
+  it("rejects a prepublish fixture missing any approved placeholder token", async () => {
+    const files = await localCandidateFiles("prepublish");
+    rewriteFile(files, "docs/submission/devpost.md", (text) => (
+      text.replace(approvedToken("GALLERY_THUMBNAIL"), "gallery-thumbnail-3x2.png")
+    ));
+
+    expect(await failureCode(validateLocalSubmission({
+      mode: "prepublish", root: process.cwd(), io: localIo(files),
+    }))).toBe("LOCAL_PLACEHOLDER");
+  });
+
+  it("rejects an approved placeholder token when it appears in the wrong file", async () => {
+    const files = await localCandidateFiles("prepublish");
+    rewriteFile(files, "README.md", (text) => `${text}\n${approvedToken("GALLERY_THUMBNAIL")}\n`);
+
+    expect(await failureCode(validateLocalSubmission({
+      mode: "prepublish", root: process.cwd(), io: localIo(files),
+    }))).toBe("LOCAL_PLACEHOLDER");
+  });
+
   it.each([
     [".env.local"], ["data/demo.db"], ["release/app.tar.gz"],
     ["notes/server-inventory-20260828.md"], ["keys/id_ed25519"],
@@ -106,6 +136,13 @@ describe("local submission validation", () => {
     await expect(validateLocalSubmission({
       mode: "prepublish", root: process.cwd(), io: localIo(files),
     })).resolves.toEqual(expect.objectContaining({ mode: "prepublish" }));
+  });
+
+  it("accepts the reviewed local package in final mode", async () => {
+    const files = await localCandidateFiles("final");
+    await expect(validateLocalSubmission({
+      mode: "final", root: process.cwd(), io: localIo(files),
+    })).resolves.toEqual(expect.objectContaining({ mode: "final" }));
   });
 });
 
