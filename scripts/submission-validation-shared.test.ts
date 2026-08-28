@@ -18,10 +18,14 @@ describe("isInside path boundaries", () => {
   });
 
   it.skipIf(process.platform !== "win32")("rejects a target on a different Windows volume", () => {
-    expect(isInside("D:\\repo", "C:\\Users\\tester\\AppData\\Local\\Temp\\devpost-evidence.json")).toBe(false);
+    const root = ["D:", "repo"].join("\\");
+    const target = ["C:", "Users", "tester", "AppData", "Local", "Temp", "devpost-evidence.json"].join("\\");
+    expect(isInside(root, target)).toBe(false);
   });
 
   it.skipIf(process.platform !== "win32")("treats Windows drive letters case-insensitively", () => {
-    expect(isInside("d:\\repo", "D:\\repo\\docs\\submission\\devpost.md")).toBe(true);
+    const root = ["d:", "repo"].join("\\");
+    const target = ["D:", "repo", "docs", "submission", "devpost.md"].join("\\");
+    expect(isInside(root, target)).toBe(true);
   });
 });
