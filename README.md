@@ -8,15 +8,16 @@ in SQLite. Do not enter real names, contact details, or real lost-property data.
 
 ## Publication status
 
-These links are explicit pre-publication placeholders. They must be replaced and verified before the Devpost submission is sent.
+The public artifacts below have been verified independently. Their presence does
+not by itself claim that the Devpost entry has been formally submitted.
 
 | Artifact | Current value |
 | --- | --- |
-| Live demo | `CLAIMGATE_PUBLIC_URL_PENDING` |
-| Public repository | `CLAIMGATE_PUBLIC_REPOSITORY_PENDING` |
-| Public video | `CLAIMGATE_PUBLIC_VIDEO_PENDING` |
+| Live demo | <https://ds.zlbdh.top:8443> |
+| Public repository | <https://github.com/zlbdh/claimgate> |
+| Public video | <https://youtu.be/v3siwO314Aw> |
 
-This README does not claim that the project is public or submitted yet.
+This README does not claim that the project has been submitted yet.
 
 The final repository must expose the complete source and required assets on its
 default branch, and its public About panel must recognize this repository's MIT

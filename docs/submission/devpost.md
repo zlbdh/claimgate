@@ -1,8 +1,8 @@
 # ClaimGate Devpost copy draft
 
-Status: local copy draft only. It is not represented here as saved or submitted
-on Devpost. Re-read the live form and rules before pasting, and replace every
-`_PENDING` value with a verified public artifact.
+Status: working submission draft. The public artifacts have been verified, but
+this file does not represent the project as formally submitted on Devpost.
+Re-read the live form and rules before finalization.
 
 ## Project name
 
@@ -17,11 +17,11 @@ decisions.
 
 | Devpost field | Value |
 | --- | --- |
-| Try it out | `CLAIMGATE_PUBLIC_URL_PENDING` |
-| Code repository | `CLAIMGATE_PUBLIC_REPOSITORY_PENDING` |
-| Demo video | `CLAIMGATE_PUBLIC_VIDEO_PENDING` |
-| Gallery thumbnail | `CLAIMGATE_GALLERY_THUMBNAIL_PENDING` |
-| Gallery screenshots | `CLAIMGATE_SCREENSHOTS_PENDING` |
+| Try it out | <https://ds.zlbdh.top:8443> |
+| Code repository | <https://github.com/zlbdh/claimgate> |
+| Demo video | <https://youtu.be/v3siwO314Aw> |
+| Gallery thumbnail | `gallery-thumbnail-3x2.png` (uploaded to Devpost) |
+| Gallery screenshots | `gallery-01-candidates.png`, `gallery-02-staff-review.png`, `gallery-03-collected.png` (uploaded to Devpost) |
 
 ## Built with
 
