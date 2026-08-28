@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
-import { resolvePlaywrightTarget } from "../../scripts/playwright-target";
+import { isPublicPlaywrightTarget, resolvePlaywrightTarget } from "../../scripts/playwright-target";
 import {
   createLostReportDraft,
   createPublishedStagedClaim,
@@ -32,6 +32,13 @@ type ExpiryFixture = Readonly<{
   generation: number;
   expiresAtMs: number;
 }>;
+
+test("a public target wins even if a local database path is left over", () => {
+  expect(isPublicPlaywrightTarget({
+    PLAYWRIGHT_BASE_URL: " https://example.com/app ",
+    CLAIMGATE_E2E_DATABASE_PATH: "C:/tmp/leftover.sqlite",
+  })).toBe(true);
+});
 
 function databasePath(): string {
   const value = process.env.CLAIMGATE_E2E_DATABASE_PATH;

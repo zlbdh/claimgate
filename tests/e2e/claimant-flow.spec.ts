@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
+import { isPublicPlaywrightTarget } from "../../scripts/playwright-target";
 import { readPrivateEvidenceSeedForTest } from "@/test/private-evidence-seed-reader";
 import { switchRole } from "./claim-gate-harness";
-
 declare global {
   interface Window {
     __claimGateTesting?: {
@@ -11,7 +11,6 @@ declare global {
     };
   }
 }
-
 async function installFaithfulModelContext(page: Page) {
   await page.addInitScript(() => {
     const testing = { active: new Map<string, WebMCPTool>(), exercised: [] as string[] };
@@ -42,7 +41,6 @@ async function installFaithfulModelContext(page: Page) {
     });
   });
 }
-
 async function toolNames(page: Page) {
   return page.evaluate(async () => {
     const context = document.modelContext as unknown as { getTools(): Promise<Array<{ name: string; inputSchema: string }>> };
@@ -197,14 +195,16 @@ test("real provider executes the state-aware tools across the production Claiman
   const forbidden = /inventoryItemId|catalogVersion|foundAt|score|csrf|cookie|session|stack/i;
   expect(JSON.stringify([created, found, staged])).not.toMatch(forbidden);
   expect(activity).not.toMatch(/cgch1|report-public|claim-public|csrf|cookie|session/i);
+  const isPublicTarget = isPublicPlaywrightTarget(process.env);
   const databasePath = process.env.CLAIMGATE_E2E_DATABASE_PATH;
-  if (databasePath) {
+  if (!isPublicTarget) {
+    expect(databasePath).toBeTruthy();
     const database = new Database(databasePath, { readonly: true });
     const internalIds = (database.prepare("SELECT id FROM found_items").all() as Array<{ id: string }>).map((row) => row.id);
     database.close();
     const inspected = JSON.stringify({ results: [created, found, staged], html, activity, browserLogs });
     for (const internalId of internalIds) expect(inspected).not.toContain(internalId);
-  } else expect(process.env.PLAYWRIGHT_BASE_URL).toBeTruthy();
+  } else expect(process.env.PLAYWRIGHT_BASE_URL?.trim()).toBeTruthy();
   expect(pageErrors).toEqual([]);
   expect(browserLogs.filter((entry) => /hydration|uncaught|console error/i.test(entry))).toEqual([]);
   await expect(page.locator("body")).not.toContainText(/Publish report manually|Archive published report/, { useInnerText: true });

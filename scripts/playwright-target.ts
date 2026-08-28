@@ -18,8 +18,16 @@ type PlaywrightTarget = {
 
 const LOCAL_URL = "http://127.0.0.1:3100";
 
+function publicPlaywrightBaseURL(environment: Environment): string | undefined {
+  return environment.PLAYWRIGHT_BASE_URL?.trim() || undefined;
+}
+
+export function isPublicPlaywrightTarget(environment: Environment): boolean {
+  return Boolean(publicPlaywrightBaseURL(environment));
+}
+
 export function resolvePlaywrightTarget(environment: Environment): PlaywrightTarget {
-  const externalURL = environment.PLAYWRIGHT_BASE_URL?.trim();
+  const externalURL = publicPlaywrightBaseURL(environment);
 
   if (externalURL) {
     const parsed = new URL(externalURL);
