@@ -65,6 +65,19 @@ describe("canonical Devpost draft evidence", () => {
     const value = await fixture();
     await expect(validate(value)).resolves.toMatchObject({ devpostChecks: 1, screenshots: 2 });
   });
+
+  it.skipIf(process.platform !== "win32")("accepts external Devpost evidence from another Windows volume", async () => {
+    const value = await fixture();
+    await expect(validateDevpostEvidence({
+      root: process.cwd(),
+      evidencePath: value.evidencePath,
+      urls: {
+        live: PUBLIC_ENV.CLAIMGATE_PUBLIC_URL,
+        repository: PUBLIC_ENV.CLAIMGATE_REPOSITORY_URL,
+        video: PUBLIC_ENV.CLAIMGATE_VIDEO_URL,
+      },
+    })).resolves.toMatchObject({ devpostChecks: 1, screenshots: 2 });
+  });
 });
 
 describe("thumbnail and screenshot filesystem evidence", () => {

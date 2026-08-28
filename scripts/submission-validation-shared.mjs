@@ -126,6 +126,11 @@ export function strictYouTubeVideo(value, code) {
 }
 
 export function isInside(root, target) {
-  const relative = path.relative(root, target);
+  const normalizedRoot = path.normalize(root);
+  const normalizedTarget = path.normalize(target);
+  const rootBase = path.parse(normalizedRoot).root.toLowerCase();
+  const targetBase = path.parse(normalizedTarget).root.toLowerCase();
+  if (rootBase !== targetBase) return false;
+  const relative = path.relative(normalizedRoot, normalizedTarget);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
