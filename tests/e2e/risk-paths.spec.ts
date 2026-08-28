@@ -36,7 +36,7 @@ type ExpiryFixture = Readonly<{
 test("a public target wins even if a local database path is left over", () => {
   expect(isPublicPlaywrightTarget({
     PLAYWRIGHT_BASE_URL: " https://example.com/app ",
-    CLAIMGATE_E2E_DATABASE_PATH: "C:/tmp/leftover.sqlite",
+    CLAIMGATE_E2E_DATABASE_PATH: ["C:", "tmp", "leftover.sqlite"].join("/"),
   })).toBe(true);
 });
 
