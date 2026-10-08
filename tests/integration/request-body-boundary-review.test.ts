@@ -112,7 +112,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     expect(counted.bytesRead()).toBeLessThanOrEqual(4_096 + prefix.byteLength);
   });
 
-  it("declared overflow 在读取 body 前拒绝", async () => {
+  it("rejects declared overflow before reading the body", async () => {
     const runtime = setup();
     const counted = streamedRequest({
       url: "https://example.test/api/demo/switch-role",
@@ -130,7 +130,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     { name: "query", method: "POST", suffix: "?role=STAFF", origin: "https://example.test", cookie: true, status: 403 },
     { name: "cross origin", method: "POST", suffix: "", origin: "https://evil.test", cookie: true, status: 403 },
     { name: "bad session", method: "POST", suffix: "", origin: "https://example.test", cookie: false, status: 401 },
-  ])("$name preflight 不消费 body", async ({ method, suffix, origin, cookie, status }) => {
+  ])("$name preflight does not consume the body", async ({ method, suffix, origin, cookie, status }) => {
     const runtime = setup();
     const headers = switchHeaders(cookie ? runtime.signed.token : "invalid", origin);
     const counted = streamedRequest({
@@ -147,7 +147,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     { type: "application/json", body: "{}" },
     { type: "multipart/form-data; boundary=x", body: "--x--" },
     { type: "text/plain", body: "csrfToken=x&targetRole=STAFF" },
-  ])("switch 拒绝 $type 且不调用 formData", async ({ type, body }) => {
+  ])("switch rejects $type without calling formData", async ({ type, body }) => {
     const runtime = setup();
     const request = new Request("https://example.test/api/demo/switch-role", {
       method: "POST",
@@ -161,7 +161,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     expect(request.bodyUsed).toBe(false);
   });
 
-  it("switch 缺失 Content-Type 时不读取 body", async () => {
+  it("switch does not read the body when Content-Type is missing", async () => {
     const runtime = setup();
     const headers = switchHeaders(runtime.signed.token);
     delete (headers as Partial<typeof headers>)["content-type"];
@@ -174,7 +174,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     expect(request.bodyUsed).toBe(false);
   });
 
-  it("fatal UTF-8 与 malformed percent encoding 都在 transaction 前拒绝", async () => {
+  it("rejects fatal UTF-8 errors and malformed percent encoding before the transaction", async () => {
     for (const chunks of [
       [Uint8Array.from([0xc3, 0x28])],
       [new TextEncoder().encode("csrfToken=%C3%28&targetRole=STAFF")],
@@ -195,7 +195,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     }
   });
 
-  it("switch 接受字段逆序，不调用 Request.formData", async () => {
+  it("switch accepts reversed field order without calling Request.formData", async () => {
     const runtime = setup();
     const csrfToken = runtime.csrf.mint({
       sessionId: runtime.signed.claims.sessionId,
@@ -224,7 +224,7 @@ describe("reviewer reproductions: body-free preflight and bounded forms", () => 
     "csrfToken=x&targetRole=CLAIMANT",
     "csrfToken=x&targetRole=STAFF&targetRole=CLAIMANT",
     "csrfToken=x",
-  ])("switch 拒绝 duplicate/extra/no-op/missing form：%s", async (body) => {
+  ])("switch rejects duplicate, extra, no-op, or missing form fields: %s", async (body) => {
     const runtime = setup();
     const response = await runtime.switchRole(new Request("https://example.test/api/demo/switch-role", {
       method: "POST",

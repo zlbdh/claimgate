@@ -8,8 +8,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("幂等 acknowledgement 的 prototype-safe canonical serialization", () => {
-  it("忽略继承的 Object.prototype.toJSON，且首调/replay 是可传输普通 DTO", async () => {
+describe("Prototype-safe canonical serialization of idempotency acknowledgments", () => {
+  it("ignores inherited Object.prototype.toJSON; initial and replayed results are transportable plain DTOs", async () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -81,7 +81,7 @@ describe("幂等 acknowledgement 的 prototype-safe canonical serialization", ()
     }
   });
 
-  it("拒绝 own toJSON、getter、非枚举和 symbol 扩展属性", () => {
+  it("rejects own toJSON, getters, nonenumerable fields, and symbol extension properties", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -104,7 +104,7 @@ describe("幂等 acknowledgement 的 prototype-safe canonical serialization", ()
     }
   });
 
-  it("输入校验和输出构造都不触发 inherited acknowledgement 访问器", async () => {
+  it("input validation and output construction never invoke inherited acknowledgment accessors", async () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();

@@ -8,8 +8,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("仓库状态写入守卫", () => {
-  it("拒绝 report、item、claim 的跳跃状态且不推进版本或审计", () => {
+describe("Repository state-write guards", () => {
+  it("rejects skipped report, item, and claim states without advancing versions or audits", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();

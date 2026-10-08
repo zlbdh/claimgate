@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("application-global demo_start limiter", () => {
-  it("跨 2,000 个窗口后 bucket 固定至多一行且 high-water 恰好一行", () => {
+  it("after 2,000 windows, the bucket has at most one row and high-water has exactly one row", () => {
     let now = NOW;
     testDatabase = createTestDatabase(now);
     const limiter = createPersistentGlobalRateLimiter({ database: testDatabase.database, now: () => now });
@@ -36,7 +36,7 @@ describe("application-global demo_start limiter", () => {
     `).get()).toEqual({ count: 1 });
   }, 15_000);
 
-  it("公开 consume 是 zero-argument fixed policy capability", () => {
+  it("the public consume method is a zero-argument fixed-policy capability", () => {
     testDatabase = createTestDatabase(NOW);
     const limiter = createPersistentGlobalRateLimiter({ database: testDatabase.database, now: () => NOW });
     expect(limiter.consume.length).toBe(0);
@@ -44,7 +44,7 @@ describe("application-global demo_start limiter", () => {
     expect(limiter.consume()).toEqual({ allowed: true, retryAfterMs: 0 });
   });
 
-  it("schema 拒绝最终 REAL 与非固定 30/min 配置", () => {
+  it("the schema rejects final REAL values and configurations other than the fixed 30/min policy", () => {
     testDatabase = createTestDatabase(NOW);
     const insert = testDatabase.database.prepare(`
       INSERT INTO application_rate_limit_high_water (
@@ -60,7 +60,7 @@ describe("application-global demo_start limiter", () => {
     `).get()).toEqual({ count: 0 });
   });
 
-  it("outer mutation rollback 同时恢复 prune、bucket 和 high-water", () => {
+  it("outer mutation rollback restores pruning, bucket, and high-water together", () => {
     testDatabase = createTestDatabase(NOW);
     const limiter = createPersistentGlobalRateLimiter({ database: testDatabase.database, now: () => NOW });
     expect(() => testDatabase!.repository.withTransaction(() => {
@@ -75,7 +75,7 @@ describe("application-global demo_start limiter", () => {
     `).get()).toEqual({ count: 0 });
   });
 
-  it("只接受固定 scope/action，30/min 且不创建 demo 行", () => {
+  it("accepts only the fixed scope/action at 30/min without creating demo rows", () => {
     const now = Date.UTC(2026, 7, 26, 12, 0, 30);
     testDatabase = createTestDatabase(now);
     const limiter = createPersistentGlobalRateLimiter({
@@ -100,7 +100,7 @@ describe("application-global demo_start limiter", () => {
       .toEqual({ count: 0 });
   });
 
-  it("重开与时钟回拨不重置额度", () => {
+  it("reopening and clock rollback do not reset the quota", () => {
     let now = Date.UTC(2026, 7, 26, 12);
     testDatabase = createTestDatabase(now);
     const limiter = createPersistentGlobalRateLimiter({ database: testDatabase.database, now: () => now });
@@ -119,7 +119,7 @@ describe("application-global demo_start limiter", () => {
     reopened.close();
   });
 
-  it("多连接争用时总允许数不超过 limit", async () => {
+  it("competing connections never exceed the total allowance", async () => {
     const now = Date.UTC(2026, 7, 26, 12, 0, 30);
     testDatabase = createTestDatabase(now);
     const moduleUrl = pathToFileURL(resolve("src/server/security/global-rate-limit.ts")).href;

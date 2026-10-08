@@ -21,8 +21,8 @@ function setup(now = Date.UTC(2026, 7, 26, 12)) {
   return { test: testDatabase, instance };
 }
 
-describe("SQLite 持久 fixed-window 限流", () => {
-  it("精确允许 limit 次并返回严格的 allowed/retryAfterMs 结构", () => {
+describe("Persistent SQLite fixed-window rate limiting", () => {
+  it("allows exactly limit requests and returns the strict allowed/retryAfterMs shape", () => {
     const now = Date.UTC(2026, 7, 26, 12, 0, 30);
     const { test, instance } = setup(now);
     const limiter = createPersistentRateLimiter({ database: test.database, now: () => now });
@@ -45,7 +45,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     { limit: 1, windowMs: 0 },
     { limit: 1.5, windowMs: 1 },
     { limit: 1, windowMs: Number.POSITIVE_INFINITY },
-  ])("拒绝非法整数边界 %#", ({ limit, windowMs }) => {
+  ])("rejects invalid integer boundaries %#", ({ limit, windowMs }) => {
     const { test, instance } = setup();
     const limiter = createPersistentRateLimiter({ database: test.database, now: () => Date.now() });
     expect(() => limiter.consume({
@@ -57,7 +57,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     })).toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
-  it("跨连接重开后保留计数，窗口切换后重新允许", () => {
+  it("preserves counts across reopened connections and allows requests again after the window changes", () => {
     let now = Date.UTC(2026, 7, 26, 12, 0, 59, 999);
     const { test, instance } = setup(now);
     const input = {
@@ -78,7 +78,7 @@ describe("SQLite 持久 fixed-window 限流", () => {
     reopened.close();
   });
 
-  it("多个独立 Node 进程争用同一文件时总允许数不超过 limit", async () => {
+  it("independent Node processes competing for one file never exceed the total allowance", async () => {
     const now = Date.UTC(2026, 7, 26, 12, 0, 30);
     const { test, instance } = setup(now);
     const moduleUrl = pathToFileURL(resolve("src/server/security/rate-limit.ts")).href;

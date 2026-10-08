@@ -5,8 +5,8 @@ import { createKeyring, KEY_PURPOSES } from "./keyring";
 
 const FIXED_MASTER_KEY = Buffer.alloc(32, 7).toString("base64");
 
-describe("用途隔离 keyring", () => {
-  it("冻结公开用途集合，调用方不能加入第五种用途", () => {
+describe("Purpose-separated keyring", () => {
+  it("freezes the public purpose set so callers cannot add a fifth purpose", () => {
     expect(Object.isFrozen(KEY_PURPOSES)).toBe(true);
     expect(() => {
       (KEY_PURPOSES as unknown as string[]).push("audit-log");
@@ -14,7 +14,7 @@ describe("用途隔离 keyring", () => {
     expect(KEY_PURPOSES).toEqual(["evidence", "pickup-pass", "candidate-handle", "database-key-check"]);
   });
 
-  it("从同一固定主密钥稳定派生四个不同用途的 256-bit 子密钥", () => {
+  it("stably derives four distinct 256-bit purpose keys from the same fixed master key", () => {
     const first = createKeyring(FIXED_MASTER_KEY);
     const second = createKeyring(FIXED_MASTER_KEY);
     const keys = KEY_PURPOSES.map((purpose) => first.getKey(purpose));
@@ -25,7 +25,7 @@ describe("用途隔离 keyring", () => {
     expect(new Set(keys.map((key) => key.toString("hex"))).size).toBe(4);
   });
 
-  it("返回子密钥副本，调用方不能改变后续派生结果", () => {
+  it("returns key copies so caller mutations cannot alter later derivations", () => {
     const keyring = createKeyring(FIXED_MASTER_KEY);
     const exposedKey = keyring.getKey("evidence");
     exposedKey.fill(0);
@@ -34,13 +34,13 @@ describe("用途隔离 keyring", () => {
   });
 
   it.each([undefined, "not-base64", Buffer.alloc(31, 7).toString("base64")])(
-    "拒绝缺失、非规范或不足 256 bit 的主密钥",
+    "rejects missing or noncanonical master keys and keys shorter than 256 bits",
     (masterKey) => {
       expect(() => createKeyring(masterKey)).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
     },
   );
 
-  it("配置错误不会序列化输入的主密钥或内部栈", () => {
+  it("configuration errors do not serialize the supplied master key or internal stack", () => {
     const error = new DomainError("CONFIGURATION_ERROR");
 
     expect(error.toJSON()).toEqual({

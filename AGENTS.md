@@ -1,15 +1,15 @@
-# ClaimGate 工程规则
+# ClaimGate Engineering Rules
 
-## 文件行数规范
+## File length guidelines
 
-- 理想每文件不超过 300 行，并保持单一职责。
-- 301–500 行必须评估能否按职责拆分。
-- 超过 500 行必须有充分理由，并在评审记录中说明。
-- 超过 1000 行禁止，必须拆分。
+- Ideally, each file stays under 300 lines and has a single responsibility.
+- Files with 301–500 lines must be evaluated for splitting by responsibility.
+- Files exceeding 500 lines require sufficient justification in the review record.
+- Files exceeding 1,000 lines are prohibited and must be split.
 
-## 模块边界
+## Module boundaries
 
-- 一个模块只负责一个清晰领域或基础设施职责。
-- 模块通过明确的公开接口协作，调用方不得依赖其他模块的内部实现。
-- 依赖保持单向，禁止循环依赖；共享类型放在明确的共享边界中。
-- 注释只解释不显然的原因和约束，不复述代码。
+- Each module owns one clear domain or infrastructure responsibility.
+- Modules collaborate through explicit public interfaces; callers must not depend on another module's internal implementation.
+- Keep dependencies unidirectional and prohibit cycles. Put shared types behind explicit shared boundaries.
+- Comments explain nonobvious reasons and constraints rather than restating the code.

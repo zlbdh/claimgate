@@ -15,8 +15,8 @@ const BASE = {
   value: "Blue–Star",
 };
 
-describe("用途隔离的 evidence HMAC", () => {
-  it("冻结三种封闭槽和 digester capability", () => {
+describe("Purpose-separated evidence HMAC", () => {
+  it("freezes the three supported slots and digester capability", () => {
     const digester = createEvidenceDigester(KEY);
     expect(EVIDENCE_SLOTS).toEqual([
       "unique_mark",
@@ -27,7 +27,7 @@ describe("用途隔离的 evidence HMAC", () => {
     expect(Object.isFrozen(digester)).toBe(true);
   });
 
-  it("同一完整上下文确定，等价规范化输入相同，digest 固定 32 bytes", () => {
+  it("is deterministic for the full context, treats equivalent normalized inputs alike, and produces 32-byte digests", () => {
     const digester = createEvidenceDigester(KEY);
     const first = digester.digest(BASE);
     const second = digester.digest({ ...BASE, value: "  ＢＬＵＥ–ＳＴＡＲ  " });
@@ -37,7 +37,7 @@ describe("用途隔离的 evidence HMAC", () => {
     expect(digester.digest(BASE)).not.toEqual(first);
   });
 
-  it("instance/item/slot/salt/key 任一变化都会域隔离", () => {
+  it("isolates domains when instance, item, slot, salt, or key changes", () => {
     const baseDigest = createEvidenceDigester(KEY).digest(BASE).toString("hex");
     const variants = [
       createEvidenceDigester(KEY).digest({ ...BASE, demoInstanceId: "instance-b" }),
@@ -49,7 +49,7 @@ describe("用途隔离的 evidence HMAC", () => {
     expect(new Set([baseDigest, ...variants]).size).toBe(6);
   });
 
-  it("uint32BE 长度前缀消除 delimiter/字段分割歧义", () => {
+  it("uint32BE length prefixes eliminate delimiter and field-boundary ambiguity", () => {
     const digester = createEvidenceDigester(KEY);
     const left = digester.digest({ ...BASE, demoInstanceId: "a", itemId: "bc" });
     const right = digester.digest({ ...BASE, demoInstanceId: "ab", itemId: "c" });
@@ -63,11 +63,11 @@ describe("用途隔离的 evidence HMAC", () => {
     () => createEvidenceDigester(KEY).digest({ ...BASE, salt: "x" as never }),
     () => createEvidenceDigester(KEY).digest({ ...BASE, slot: "other" as never }),
     () => createEvidenceDigester(KEY).digest({ ...BASE, itemId: "" }),
-  ])("拒绝非 32-byte key、非 16-byte salt 与非法上下文", (operation) => {
+  ])("rejects keys other than 32 bytes, salts other than 16 bytes, and invalid contexts", (operation) => {
     expect(operation).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("拒绝 %s evidence key，且不执行陷阱", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("rejects %s evidence keys without executing traps", (kind) => {
     const counter = { count: 0 };
     expect(() => createEvidenceDigester(adversarialBuffer(kind, 32, counter))).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
@@ -75,7 +75,7 @@ describe("用途隔离的 evidence HMAC", () => {
     expect(counter.count).toBe(0);
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("拒绝 %s digest salt，且不执行陷阱", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("rejects %s digest salts without executing traps", (kind) => {
     const counter = { count: 0 };
     expect(() => createEvidenceDigester(KEY).digest({
       ...BASE,
@@ -84,7 +84,7 @@ describe("用途隔离的 evidence HMAC", () => {
     expect(counter.count).toBe(0);
   });
 
-  it("拒绝 Uint8Array，并隔离调用方后续修改", () => {
+  it("rejects Uint8Array and isolates subsequent caller mutations", () => {
     expect(() => createEvidenceDigester(new Uint8Array(32) as never)).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
     );

@@ -105,8 +105,8 @@ function createV2Database(injectFailure = false) {
   return { databasePath, databaseUuid, salt, before };
 }
 
-describe("数据库 schema v2 到 v5 preserving migration", () => {
-  it("验证 v2 authenticator 后保留全部业务行、UUID/salt，仅新增全局 limiter", () => {
+describe("Preserving migration from database schema v2 to v5", () => {
+  it("verifies the v2 authenticator and preserves all business rows and UUIDs/salts, adding only the global limiter", () => {
     const legacy = createV2Database();
     const database = initializeDatabase({
       databasePath: legacy.databasePath,
@@ -142,7 +142,7 @@ describe("数据库 schema v2 到 v5 preserving migration", () => {
     })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("迁移失败回滚新增表、业务行与 v2 metadata", () => {
+  it("migration failure rolls back new tables, business rows, and v2 metadata", () => {
     const legacy = createV2Database(true);
     expect(() => initializeDatabase({
       databasePath: legacy.databasePath,
@@ -159,7 +159,7 @@ describe("数据库 schema v2 到 v5 preserving migration", () => {
     database.close();
   });
 
-  it("v2 错钥与未知版本都 fail closed 且不写入 v4 表", () => {
+  it("wrong v2 keys and unknown versions fail closed without writing v4 tables", () => {
     const wrongKey = createV2Database();
     expect(() => initializeDatabase({
       databasePath: wrongKey.databasePath,

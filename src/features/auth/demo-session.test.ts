@@ -20,8 +20,8 @@ function signRawPayload(payloadValue: unknown): string {
   return `v1.${payload}.${signature}`;
 }
 
-describe("签名演示会话", () => {
-  it("只签发固定身份、随机不透明 sessionId 和实例内绝对到期时间", () => {
+describe("Signed demo sessions", () => {
+  it("issues only fixed identities, random opaque sessionIds, and absolute expiration within the instance", () => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     const first = signer.mint({
       demoInstanceId: "demo-a",
@@ -48,7 +48,7 @@ describe("签名演示会话", () => {
     expect(signer.verify(first.token)).toEqual(first.claims);
   });
 
-  it("角色切换只改变固定身份并旋转 sessionId，不延长会话", () => {
+  it("switching roles changes only the fixed identity and rotates sessionId without extending the session", () => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     const claimant = signer.mint({
       demoInstanceId: "demo-a",
@@ -73,7 +73,7 @@ describe("签名演示会话", () => {
     "not-base64",
     Buffer.alloc(31).toString("base64"),
     `${Buffer.alloc(32).toString("base64")}=`,
-  ])("弱、缺失或非 canonical key 统一配置失败 %#", (key) => {
+  ])("weak, missing, or noncanonical keys cause the same configuration failure %#", (key) => {
     expect(() => createDemoSessionSigner({ key })).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
     );
@@ -86,14 +86,14 @@ describe("签名演示会话", () => {
     "v1.only-two",
     "v2.e30.signature",
     "v1.***.signature",
-  ])("缺失或畸形 envelope 统一 AUTH_REQUIRED %#", (token) => {
+  ])("missing or malformed envelopes uniformly return AUTH_REQUIRED %#", (token) => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     expect(() => signer.verify(token)).toThrow(
       expect.objectContaining({ code: "AUTH_REQUIRED" }),
     );
   });
 
-  it("拒绝篡改和到期 token，且不透露具体校验阶段", () => {
+  it("rejects tampered and expired tokens without revealing the validation stage", () => {
     let now = NOW;
     const signer = createDemoSessionSigner({ key: KEY, now: () => now });
     const signed = signer.mint({
@@ -113,7 +113,7 @@ describe("签名演示会话", () => {
     );
   });
 
-  it("即使签名正确也拒绝 noncanonical key order、额外字段和身份错配", () => {
+  it("rejects noncanonical key order, extra fields, and identity mismatches even with a valid signature", () => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     const sid = Buffer.alloc(24, 1).toString("base64url");
     const invalidPayloads = [
@@ -128,7 +128,7 @@ describe("签名演示会话", () => {
     }
   });
 
-  it("拒绝签发已过期、超出安全整数或非法实例的 claims", () => {
+  it("rejects expired claims, unsafe integers, and invalid instances", () => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     for (const input of [
       { demoInstanceId: "", role: "CLAIMANT", expiresAt: EXPIRY },
@@ -143,11 +143,11 @@ describe("签名演示会话", () => {
   });
 });
 
-describe("演示会话 Cookie", () => {
+describe("Demo session cookies", () => {
   it.each([
     ["http://127.0.0.1:3100", false],
     ["https://demo.example.test", true],
-  ] as const)("按 APP_ORIGIN 决定 Secure：%s", (appOrigin, secure) => {
+  ] as const)("sets Secure according to APP_ORIGIN: %s", (appOrigin, secure) => {
     const signer = createDemoSessionSigner({ key: KEY, now: () => NOW });
     const signed = signer.mint({
       demoInstanceId: "demo-a",

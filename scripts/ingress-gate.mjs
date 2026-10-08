@@ -59,7 +59,7 @@ export async function runIngressGate(options = {}) {
 }
 
 const entryPath = process.argv[1];
-// 2026-08-28 by Codex — systemd 通过 current 符号链接启动，入口判断必须比较真实路径。
+// 2026-08-28 by Codex — systemd starts through the current symlink, so entry-point detection must compare real paths.
 if (entryPath && import.meta.url === pathToFileURL(realpathSync(resolve(entryPath))).href) {
   try {
     const runtime = await runIngressGate();

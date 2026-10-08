@@ -37,12 +37,12 @@ for (const file of files.sort()) {
 
   if (lineCount > 1_000) {
     failed = true;
-    console.error(`禁止：${relative} 超过 1000 行，必须拆分。`);
+    console.error(`Prohibited: ${relative} exceeds 1,000 lines and must be split.`);
   } else if (lineCount > 500) {
     failed = true;
-    console.error(`失败：${relative} 超过 500 行，需提供充分理由后再调整门禁。`);
+    console.error(`Failed: ${relative} exceeds 500 lines. Provide sufficient justification before adjusting the gate.`);
   } else if (lineCount > 300) {
-    console.warn(`提醒：${relative} 为 ${lineCount} 行，需要评估拆分。`);
+    console.warn(`Reminder: ${relative} has ${lineCount} lines. Evaluate splitting it.`);
   }
 }
 

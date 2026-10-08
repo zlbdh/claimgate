@@ -40,7 +40,7 @@ function startHeaders(contentType?: string, origin = "https://example.test") {
 }
 
 describe("strict empty start form", () => {
-  it("接受浏览器的严格空 urlencoded form", async () => {
+  it("accepts strictly empty browser urlencoded forms", async () => {
     const start = setupStart();
     const response = await start(new Request("https://example.test/api/demo/start", {
       method: "POST",
@@ -60,7 +60,7 @@ describe("strict empty start form", () => {
     { type: "multipart/form-data; boundary=x", body: "--x--" },
     { type: "text/plain", body: "" },
     { type: undefined, body: "" },
-  ])("拒绝非空/非 urlencoded form：$type/$body", async ({ type, body }) => {
+  ])("rejects nonempty or non-urlencoded forms: $type/$body", async ({ type, body }) => {
     const start = setupStart();
     const response = await start(new Request("https://example.test/api/demo/start", {
       method: "POST",
@@ -74,7 +74,7 @@ describe("strict empty start form", () => {
       .toEqual({ count: 0 });
   });
 
-  it("cross-origin preflight 不读取 body", async () => {
+  it("cross-origin preflight does not read the body", async () => {
     const start = setupStart();
     const request = new Request("https://example.test/api/demo/start", {
       method: "POST",

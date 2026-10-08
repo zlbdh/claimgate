@@ -54,15 +54,15 @@ async function runRace(keys: string[]) {
   return Promise.allSettled(calls);
 }
 
-describe("首次建库的跨进程密钥检查", () => {
-  it("同一密钥的并发首次打开全部成功，不把初始化中的文件误判成坏库", async () => {
+describe("Cross-process key checks during initial database creation", () => {
+  it("concurrent first opens with the same key all succeed without treating initialization as corruption", async () => {
     const key = Buffer.alloc(32, 31).toString("base64");
     const results = await runRace(Array.from({ length: 12 }, () => key));
     expect(results.every((result) => result.status === "fulfilled" && result.value.stdout === "ok"))
       .toBe(true);
   }, 45_000);
 
-  it("混合密钥竞速时只有获胜密钥能够打开，且不会被另一密钥接管", async () => {
+  it("in a mixed-key race, only the winning key can open the database and the other key cannot take over", async () => {
     const first = Buffer.alloc(32, 41).toString("base64");
     const second = Buffer.alloc(32, 42).toString("base64");
     const keys = Array.from({ length: 12 }, (_, index) => index % 2 === 0 ? first : second);

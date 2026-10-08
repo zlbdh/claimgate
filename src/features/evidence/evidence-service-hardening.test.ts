@@ -62,14 +62,14 @@ function verifyWith(options: {
   });
 }
 
-describe("active attempt 固定三槽比较", () => {
+describe("Fixed three-slot comparison for active attempts", () => {
   it.each([
     {},
     { unique_mark: expectedAnswers.unique_mark },
     { unique_mark: "wrong", contents_or_accessory: expectedAnswers.contents_or_accessory },
     expectedAnswers,
     { ...expectedAnswers, unique_mark: "wrong" },
-  ])("答案矩阵 %j 始终 digest=3/compare=3", (answers) => {
+  ])("answer matrix %j always performs digest=3/compare=3", (answers) => {
     const digestCalls: EvidenceSlot[] = [];
     const recording = Object.freeze({
       digest(input) {
@@ -83,7 +83,7 @@ describe("active attempt 固定三槽比较", () => {
     expect(compareCalls.every(([left, right]) => left.length === 32 && right.length === 32)).toBe(true);
   });
 
-  it("任一 digester 输出损坏时仍计算三槽，并在任何 native compare 前安全失败", () => {
+  it("computes all three slots even with corrupt digester output and fails safely before any native comparison", () => {
     const digestCalls: EvidenceSlot[] = [];
     const malformed = Object.freeze({
       digest(input) {
@@ -100,7 +100,7 @@ describe("active attempt 固定三槽比较", () => {
 });
 
 describe("descriptor-first containers", () => {
-  it("答案 Map 不触发 Object.prototype 继承 setter/getter", () => {
+  it("the answer Map does not invoke inherited Object.prototype setters or getters", () => {
     let setterRuns = 0;
     let getterRuns = 0;
     Object.defineProperty(Object.prototype, "unique_mark", {
@@ -118,7 +118,7 @@ describe("descriptor-first containers", () => {
     }
   });
 
-  it("答案拒绝 accessor、symbol、extra、non-enumerable、null prototype 且零调用", () => {
+  it("rejects accessors, symbols, extra or nonenumerable fields, and null prototypes without invoking them", () => {
     let invocations = 0;
     const accessor = Object.defineProperty({}, "unique_mark", {
       enumerable: true,
@@ -142,7 +142,7 @@ describe("descriptor-first containers", () => {
     expect(invocations).toBe(0);
   });
 
-  it("stored Array 在读取前拒绝 iterator/index accessor、extra/symbol/custom prototype", () => {
+  it("rejects stored Array iterator or index accessors, extras, symbols, and custom prototypes before reading", () => {
     let invocations = 0;
     const iterator = [...storedSlots];
     Object.defineProperty(iterator, Symbol.iterator, {
@@ -168,7 +168,7 @@ describe("descriptor-first containers", () => {
     expect(invocations).toBe(0);
   });
 
-  it("stored entry 在读取前拒绝 getter/prototype/symbol/extra/non-enumerable", () => {
+  it("rejects stored-entry getters, prototypes, symbols, extras, and nonenumerable fields before reading", () => {
     let invocations = 0;
     const getter = Object.defineProperties({}, {
       slot: { enumerable: true, get() { invocations += 1; return storedSlots[0]!.slot; } },
@@ -197,7 +197,7 @@ describe("descriptor-first containers", () => {
     expect(invocations).toBe(0);
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("stored salt/digest 拒绝 %s Buffer 且零陷阱", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("rejects %s stored salt/digest Buffers without invoking traps", (kind) => {
     for (const field of ["salt", "digest"] as const) {
       const counter = { count: 0 };
       const malicious = adversarialBuffer(kind, field === "salt" ? 16 : 32, counter);
@@ -210,7 +210,7 @@ describe("descriptor-first containers", () => {
     }
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("computed digest 拒绝 %s Buffer 且零陷阱", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("rejects %s computed digest Buffers without invoking traps", (kind) => {
     const counter = { count: 0 };
     const digester = Object.freeze({
       digest: () => adversarialBuffer(kind, 32, counter),
@@ -222,7 +222,7 @@ describe("descriptor-first containers", () => {
     expect(compareCalls).toHaveLength(0);
   });
 
-  it("stored/computed Uint8Array 均有界拒绝", () => {
+  it("rejects stored and computed Uint8Arrays within bounds", () => {
     const entry = { ...storedSlots[0], salt: new Uint8Array(16) };
     expect(() => verifyWith({ slots: [entry, storedSlots[1], storedSlots[2]] })).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
@@ -233,7 +233,7 @@ describe("descriptor-first containers", () => {
     );
   });
 
-  it("比较器只接收 stored/computed 的 fresh standard clone", () => {
+  it("the comparator receives only fresh standard clones of stored and computed values", () => {
     const computedSource = Buffer.alloc(32, 71);
     const storedSources = EVIDENCE_SLOTS.map((slot, index) => ({
       slot,
@@ -265,7 +265,7 @@ describe("descriptor-first containers", () => {
 });
 
 describe("lock semantics", () => {
-  it("prior=3 在 capability/context/count 后直接 LOCKED，不解析容器或 hash", () => {
+  it("prior=3 returns LOCKED after capability/context/count checks without parsing containers or hashing", () => {
     let invocations = 0;
     const maliciousSlots = new Array(3);
     Object.defineProperty(maliciousSlots, Symbol.iterator, {
@@ -288,7 +288,7 @@ describe("lock semantics", () => {
     expect(compareCalls).toHaveLength(0);
   });
 
-  it.each([0, 1, 2, 4])("unlock 拒绝 LOCKED attempts=%d", (attempts) => {
+  it.each([0, 1, 2, 4])("unlock rejects LOCKED attempts=%d", (attempts) => {
     expect(() => unlockEvidenceLock({ role: "STAFF", status: "LOCKED", attempts }))
       .toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
   });

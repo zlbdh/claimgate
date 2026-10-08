@@ -13,8 +13,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("过期演示实例清理脚本", () => {
-  it("默认只 dry-run，只有显式 --apply 才级联删除到期实例", () => {
+describe("Expired demo instance cleanup script", () => {
+  it("defaults to dry-run; only explicit --apply cascades deletion of expired instances", () => {
     const now = Date.UTC(2026, 7, 26, 12);
     testDatabase = createTestDatabase(now);
     const expired = testDatabase.repository.createDemoInstance();
@@ -43,15 +43,15 @@ describe("过期演示实例清理脚本", () => {
       .toEqual({ count: 1 });
   });
 
-  it("缺少显式数据库路径时拒绝运行", () => {
+  it("refuses to run without an explicit database path", () => {
     const script = resolve("scripts/reset-expired-demo-instances.mjs");
     expect(() => execFileSync(process.execPath, [script], { encoding: "utf8" })).toThrow();
   });
 
   it.each([
-    ["缺少密钥", undefined],
-    ["错误密钥", Buffer.alloc(32, 8).toString("base64")],
-  ])("--apply 在%s时拒绝删除", (_label, masterKey) => {
+    ["missing key", undefined],
+    ["wrong key", Buffer.alloc(32, 8).toString("base64")],
+  ])("--apply refuses deletion with %s", (_label, masterKey) => {
     testDatabase = createTestDatabase();
     const expired = testDatabase.repository.createDemoInstance();
     const script = resolve("scripts/reset-expired-demo-instances.mjs");
@@ -68,7 +68,7 @@ describe("过期演示实例清理脚本", () => {
       .toEqual({ count: 1 });
   });
 
-  it("--apply 在 metadata authenticator 被篡改时拒绝删除", () => {
+  it("--apply refuses deletion when the metadata authenticator is tampered with", () => {
     testDatabase = createTestDatabase();
     const expired = testDatabase.repository.createDemoInstance();
     testDatabase.database.prepare(`

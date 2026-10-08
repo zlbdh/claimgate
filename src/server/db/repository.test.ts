@@ -39,8 +39,8 @@ function createReportInput(instanceId: string) {
   };
 }
 
-describe("SQLite 连接与配置密钥连续性", () => {
-  it("为每个连接启用外键、WAL、FULL 同步与统一 busy timeout", () => {
+describe("SQLite connections and configured-key continuity", () => {
+  it("enables foreign keys, WAL, FULL synchronization, and a consistent busy timeout on every connection", () => {
     const test = setup();
 
     expect(test.database.pragma("foreign_keys", { simple: true })).toBe(1);
@@ -55,7 +55,7 @@ describe("SQLite 连接与配置密钥连续性", () => {
     second.close();
   });
 
-  it("同一密钥可重开，错误密钥或不匹配 metadata 均安全失败", () => {
+  it("reopens with the same key; wrong keys or mismatched metadata fail safely", () => {
     const test = setup();
     const databasePath = test.databasePath;
     test.database.close();
@@ -80,7 +80,7 @@ describe("SQLite 连接与配置密钥连续性", () => {
     })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("拒绝已有空数据库，不把它误判成可初始化的新库", () => {
+  it("rejects an existing empty database instead of treating it as a new database to initialize", () => {
     const test = setup();
     const emptyPath = `${test.databasePath}.existing-empty`;
     closeSync(openSync(emptyPath, "w"));
@@ -93,8 +93,8 @@ describe("SQLite 连接与配置密钥连续性", () => {
   });
 });
 
-describe("隔离演示实例与种子", () => {
-  it("在单事务中物理克隆 1 个强匹配与 6 个同类干扰项", () => {
+describe("Isolated demo instances and seeds", () => {
+  it("physically clones one strong match and six same-category distractors in a single transaction", () => {
     const now = Date.UTC(2026, 7, 26, 12);
     const { repository, database } = setup(now);
     const first = repository.createDemoInstance();
@@ -141,7 +141,7 @@ describe("隔离演示实例与种子", () => {
     expect(matches[0]?.confidence).toBe("strong");
   });
 
-  it("到期边界立即拒绝读写，清理只删除已到期实例", () => {
+  it("rejects reads and writes at the expiration boundary; cleanup deletes only expired instances", () => {
     const now = Date.UTC(2026, 7, 26, 12);
     const test = setup(now);
     const expired = test.repository.createDemoInstance();
@@ -160,8 +160,8 @@ describe("隔离演示实例与种子", () => {
   });
 });
 
-describe("事务、范围、版本与幂等契约", () => {
-  it("资源版本和 catalogVersion 成功时各增一次，陈旧写入不留下审计", () => {
+describe("Transaction, scope, version, and idempotency contracts", () => {
+  it("resource versions and catalogVersion each advance once on success; stale writes leave no audit entry", () => {
     const { repository } = setup();
     const instance = repository.createDemoInstance();
     const report = repository.createLostReport(createReportInput(instance.demoInstanceId));
@@ -214,7 +214,7 @@ describe("事务、范围、版本与幂等契约", () => {
     }).version).toBe(2);
   });
 
-  it("跨实例方法与数据库复合外键都拒绝有效但不属于本实例的 ID", () => {
+  it("cross-instance methods and composite foreign keys reject valid IDs belonging to another instance", () => {
     const { repository, database } = setup();
     const first = repository.createDemoInstance();
     const second = repository.createDemoInstance();
@@ -239,7 +239,7 @@ describe("事务、范围、版本与幂等契约", () => {
       .toThrow(expect.objectContaining({ code: "SQLITE_CONSTRAINT_FOREIGNKEY" }));
   });
 
-  it("异常或 async 回调整体回滚；幂等重试不重放 mutation/audit", () => {
+  it("exceptions and async callbacks roll back everything; idempotent retries do not replay mutations or audits", () => {
     const { repository } = setup();
     const instance = repository.createDemoInstance();
 

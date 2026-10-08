@@ -8,8 +8,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("事务仓库生命周期", () => {
-  it("普通函数返回 Promise 后排队的工作不能逃逸回滚边界", async () => {
+describe("Transactional repository lifecycle", () => {
+  it("work queued after a normal function returns a Promise cannot escape the rollback boundary", async () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -38,7 +38,7 @@ describe("事务仓库生命周期", () => {
     );
   });
 
-  it("同步回调结束后排队的 microtask 也不能继续使用 scoped repository", async () => {
+  it("microtasks queued after a synchronous callback ends cannot keep using the scoped repository", async () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();

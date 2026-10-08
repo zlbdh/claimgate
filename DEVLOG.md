@@ -1,129 +1,129 @@
-# ClaimGate 开发日志
+# ClaimGate Development Log
 
-## 2026-08-26 [Task 1：项目基础与 WebMCP 兼容探针]
+## 2026-08-26 [Task 1: Project foundation and WebMCP compatibility probe]
 
-### 工程起点
+### Engineering baseline
 
-- 操作人：Codex。
-- 从基线提交 `0333e08462d3f5fe1e61af4bf30ca0d0d727fbdd` 开始，建立 Next.js 16、React 19、TypeScript、Vitest 与 Playwright 工具链。
-- 生产 CSP 采用逐请求 nonce；开发环境只按 Next.js 要求增加 `unsafe-eval`，生产不允许 `unsafe-inline` 或 `unsafe-eval`。
-- WebMCP 只使用原生 `document.modelContext`，不引入 polyfill、已弃用的 `navigator.modelContext` 或跨源暴露。
-- 真实 WebMCP 发现、调用和注销必须由支持环境验证；自动化注入只能证明页面降级和生命周期逻辑，不能替代真实验收。
+- Operator: Codex.
+- Started from baseline commit `0333e08462d3f5fe1e61af4bf30ca0d0d727fbdd` and established the Next.js 16, React 19, TypeScript, Vitest, and Playwright toolchain.
+- Production CSP uses a per-request nonce. Development adds only the `unsafe-eval` required by Next.js; production permits neither `unsafe-inline` nor `unsafe-eval`.
+- WebMCP uses only native `document.modelContext`, with no polyfill, deprecated `navigator.modelContext`, or cross-origin exposure.
+- Real WebMCP discovery, execution, and unregistration require verification in a supported environment. Automated injection proves only fallback UI and lifecycle logic and cannot replace native acceptance.
 
-### TDD 与兼容性结果
+### TDD and compatibility results
 
-- `resolveModelContext` 首次测试因模块不存在而 RED；最小实现后 2 项 feature detection 测试 GREEN。
-- 探针工具首次测试因模块不存在而 RED；最小实现后名称、只读标记、nonce 返回和注册 signal 共 5 项测试 GREEN。
-- 浏览器 E2E 首次因尚无 `app` 目录而 RED；实现 landing、探针页和逐请求 CSP 后 2 项生产 E2E GREEN。
-- Playwright 1.62.1 安装匹配的 Chrome for Testing 151.0.7922.34；官方 npm registry 生产依赖审计为 0 vulnerabilities。
-- 用户 Chrome 会话未暴露 `document.modelContext`，降级 UI 正常；独立 Chrome 151 以 `WebMCPTesting` feature 完成原生发现、精确 nonce 调用、`toolchange` 和离页注销。
+- The first `resolveModelContext` test was RED because the module did not exist. The minimal implementation made both feature-detection tests GREEN.
+- The probe-tool tests first went RED because the module was absent. The minimal implementation made all five tests for name, read-only annotation, nonce return, and registration signal GREEN.
+- Browser E2E first went RED because the `app` directory did not exist. Implementing the landing page, probe page, and per-request CSP made both production E2E tests GREEN.
+- Playwright 1.62.1 installed its matching Chrome for Testing 151.0.7922.34. The official npm registry audit reported 0 production dependency vulnerabilities.
+- The user's Chrome session did not expose `document.modelContext`, and the fallback UI worked. Separate Chrome 151 with the `WebMCPTesting` feature completed native discovery, exact-nonce execution, `toolchange`, and unregistration on navigation.
 
-### 关键决策与踩坑
+### Key decisions and lessons
 
-- `output: standalone` 不能以 `next start` 作为验收启动方式；E2E 改为复制静态资源并直接启动 `.next/standalone/server.js`。
-- 本机 npm 镜像不实现 audit API，首次审计返回 404；只对审计命令临时指定官方 registry 后得到 0 vulnerabilities，不更改用户全局 npm 配置。
-- 安装阶段生成的 lockfile 曾固化本机镜像地址；提交前只将 registry host 机械规范化为官方 npm registry，并用 `npm ci --dry-run` 验证锁文件可安装，版本与完整性未变。
-- 原生 `executeTool()` 将对象结果序列化为 JSON 字符串；验收脚本解析后再比较结构。Abort 注销通过异步 `toolchange` 传播，因此使用条件等待，不用固定睡眠冒充稳定性。
-- Vitest 默认发现规则会收集 `tests/e2e`；将 Playwright 目录加入显式排除后，单元测试与浏览器测试保持职责分离。
+- `output: standalone` cannot use `next start` for acceptance. E2E now copies static assets and launches `.next/standalone/server.js` directly.
+- The local npm mirror did not implement the audit API, so the first audit returned 404. Temporarily specifying the official registry for the audit command produced 0 vulnerabilities without changing the user's global npm configuration.
+- Installation initially pinned local mirror addresses in the lockfile. Before committing, only registry hosts were mechanically normalized to the official npm registry; `npm ci --dry-run` verified installation without changing versions or integrity values.
+- Native `executeTool()` serializes object results as JSON strings. The acceptance script parses them before comparing structures. Abort-based unregistration propagates through asynchronous `toolchange`, so verification waits for conditions instead of using fixed sleeps as evidence of stability.
+- Vitest's default discovery included `tests/e2e`. Explicitly excluding the Playwright directory kept unit and browser tests separate.
 
-## 2026-08-26 [Task 2：公开字段确定性候选匹配]
+## 2026-08-26 [Task 2: Deterministic candidate matching from public fields]
 
-- 决定：Matching 只接收类别、时间窗/找到时间、粗粒度区域、颜色、公共标签和公共描述；类别不一致直接拒绝，评分达到 50 才进入候选。
-- 决定：相邻区域与颜色族使用显式常量；结果理由仅输出稳定的公共字段说明，返回摘要不包含秘密证据字段。
-- 验证：先运行缺失模块的匹配测试确认 RED，再以最小实现通过 8 项匹配测试与 TypeScript 严格类型检查；提交前继续执行完整 verify 门。
-- 踩坑：组件分数测试必须隔离其他字段，否则时间分值会与区域、颜色和标签分值叠加；测试工厂因此支持覆盖公开字段。
+- Decision: Matching accepts only category, time window/found time, coarse area, color, public tags, and public description. Category mismatches are rejected immediately; a score of at least 50 is required to become a candidate.
+- Decision: Adjacent areas and color families use explicit constants. Reasons contain only stable public-field explanations, and result summaries contain no private evidence fields.
+- Verification: Ran the missing-module matching tests to confirm RED, then passed all eight matching tests and strict TypeScript checking with the minimal implementation. The complete verify gate was still required before committing.
+- Lesson: Component-score tests must isolate other fields, or time scores combine with area, color, and tag scores. Test factories therefore support public-field overrides.
 
-## 2026-08-26 [Task 3：领域状态与用途隔离密钥]
+## 2026-08-26 [Task 3: Domain states and purpose-separated keys]
 
-### 改动内容
+### Changes
 
-- 新增 Report、Item、Claim 的纯状态守卫，拒绝同态、跳跃、回退和从终态离开的调用；服务层以后须在调用守卫前完成幂等短路。
-- 新增闭合 `DomainError` 代码集与固定 JSON 安全元数据；错误序列化不含堆栈、cause、资源标识符或调用方自定义详情。
-- 新增基于 Node `crypto.hkdfSync` 的用途隔离 keyring，从 `CLAIMGATE_HMAC_KEY` 派生 evidence、pickup-pass、candidate-handle 与 database-key-check 四个 32-byte 子密钥。
+- Added pure Report, Item, and Claim state guards that reject self-transitions, skipped states, backward transitions, and departures from terminal states. Services must short-circuit idempotent requests before invoking the guards.
+- Added a closed `DomainError` code set with fixed safe JSON metadata. Serialized errors exclude stacks, causes, resource identifiers, and caller-supplied details.
+- Added a purpose-separated keyring using Node `crypto.hkdfSync`, deriving four 32-byte subkeys for evidence, pickup-pass, candidate-handle, and database-key-check from `CLAIMGATE_HMAC_KEY`.
 
-### 决定与验证
+### Decisions and verification
 
-- 主密钥仅接受严格的标准 padded Base64：长度必须为 4 的倍数、回编码一致，解码后至少 32 bytes；这能避免 Node 的宽松解码把格式错误的部署配置悄悄接受。
-- HKDF 使用固定 UTF-8 salt `ClaimGate/keyring/v1` 与带用途和版本号的 UTF-8 info，避免不同安全用途复用同一子密钥。
-- TDD：先因领域模块不存在得到预期 RED；最小实现后目标测试 39 项 GREEN。完整 `npm run verify` 通过（55 项单测、lint、typecheck、文件行数与生产构建）。
+- Master keys accept only strict standard padded Base64: length must be a multiple of four, re-encoding must match, and decoding must produce at least 32 bytes. This prevents Node's permissive decoding from silently accepting malformed deployment configuration.
+- HKDF uses the fixed UTF-8 salt `ClaimGate/keyring/v1` and UTF-8 info containing purpose and version, preventing reuse of one subkey across security purposes.
+- TDD: Missing domain modules produced the expected RED state. The minimal implementation made 39 targeted tests GREEN. Full `npm run verify` passed, including 55 unit tests, lint, typecheck, file-length checks, and production build.
 
-## 2026-08-26 [Task 3 review fix round 1：运行时不可变边界]
+## 2026-08-26 [Task 3 review fix round 1: Runtime immutability boundaries]
 
-### 修复内容
+### Fixes
 
-- `DomainError` 现在在运行时验证闭合 code，以私有字段保存可信 code，并冻结错误实例与公开代码集合；`toJSON` 仅从私有 code 映射固定安全消息。
-- Report、Item、Claim 转移表及每个内部数组均冻结；公开 `KEY_PURPOSES` 同样冻结，调用方不能追加用途或改变图。
-- 状态测试改为全部有序状态对：Report 16、Item 9、Claim 49；只有设计 addendum 列出的边可通过，包含全部同态与终态离开。
+- `DomainError` now validates the closed code set at runtime, stores the trusted code privately, and freezes instances and the public code set. `toJSON` maps only the private code to fixed safe messages.
+- Report, Item, and Claim transition tables and every nested array are frozen. Public `KEY_PURPOSES` is also frozen so callers cannot add purposes or change the graph.
+- State tests now cover every ordered state pair: 16 for Report, 9 for Item, and 49 for Claim. Only edges listed in the design addendum pass, including checks for all self-transitions and departures from terminal states.
 
-### TDD 与验证
+### TDD and verification
 
-- 新测试先 RED：非法 code 未拒绝，错误/状态表/用途集合均未冻结；全图测试随后明确验证现有合法边。
-- 首次 GREEN 因冻结封装替换漏掉闭合括号而报 TypeScript 语法错误，修正后目标 85 项测试与 typecheck 通过。
-- 完整 `npm run verify` 通过：文件行数、lint、typecheck、6 个文件 101 项测试和生产构建均成功。
+- New tests first went RED: invalid codes were accepted, and errors, state tables, and purpose sets were not frozen. Full-graph tests then explicitly verified existing allowed edges.
+- The first GREEN attempt hit a TypeScript syntax error from a missing closing parenthesis in the freeze wrapper. After correction, all 85 targeted tests and typecheck passed.
+- Full `npm run verify` passed: file lengths, lint, typecheck, 101 tests across six files, and the production build.
 
-## 2026-08-26 [Task 4 review fix round 2：数据库 v2 迁移决策]
+## 2026-08-26 [Task 4 review fix round 2: Database v2 migration decision]
 
-- schema 版本提升到 v2。打开 v1 文件时，必须先用 v1 metadata authenticator 验证配置密钥，再在同一 `BEGIN IMMEDIATE` 内升级。
-- ClaimGate 尚未部署，业务数据仅为可丢弃的两小时 demo；v1→v2 因此按依赖顺序删除并重建所有业务表，不复制旧 demo 行。迁移保留数据库 UUID 与 key-check salt，完成 v2 schema 和 `foreign_key_check` 后才写入 v2 authenticator。
-- 任一步骤失败会回滚全部 DDL、业务行和 metadata；错误密钥、未知版本或不完整 schema 均失败关闭，不自动接管数据库。
+- Advanced the schema to v2. Opening a v1 file must first verify the configured key using its v1 metadata authenticator, then upgrade within the same `BEGIN IMMEDIATE` transaction.
+- ClaimGate was not yet deployed, and business data consisted only of disposable two-hour demos. The v1→v2 migration therefore drops and recreates business tables in dependency order without copying old demo rows. It preserves the database UUID and key-check salt, writing the v2 authenticator only after creating the v2 schema and passing `foreign_key_check`.
+- Any failure rolls back all DDL, business rows, and metadata. Wrong keys, unknown versions, and incomplete schemas fail closed without automatically taking over the database.
 
-## 2026-08-27 [Task 9：九工具动态 WebMCP 与只读 API]
+## 2026-08-27 [Task 9: Nine dynamic WebMCP tools and read-only APIs]
 
-- **记录**：2026-08-27 19:59 by Codex — 记录 Chrome 151 兼容、状态工具注销和输出预算的阶段性结论，防止 Task 10/11 回归。
-- **改动**：四工具扩展为九工具；新增 Claim 状态、领取说明、Staff 队列与审核摘要四个认证 GET；Claimant/Staff 页面按角色、页面和状态动态注册工具；活动流展示最近 20 条工具的开始/结束时间。
-- **决策**：发布、归档、私密举证、批准/拒绝/解锁、领取码签发/重签、角色切换和交接继续只允许人工完成，不注册 WebMCP 工具。
-- **兼容性**：Chrome 151 在工具注销时仍可能影响执行中调用，所以写工具先返回规范结果，再在下一 macrotask 导航/刷新；所有候选、导航、刷新和活动副作用均受页面 generation 门保护。
-- **安全边界**：工具运行时再次 strict parse；嵌套 JSON Schema 全部拒绝额外字段；单次工具结果按实际 JSON 序列化不超过 1,500 字符；HTTP 响应最多流式读取 65,536 bytes，超限取消；公开描述、时间线和报告列表只返回最小白名单摘要。
-- **踩坑**：仅在客户端过滤 50 条完整报告会使合法 UTF-8 响应超过读取上限；修为服务端 canonical `status/limit` 过滤并只返回摘要。候选重新查询失败若不清旧结果，会让 `stage_claim_candidate` 错误滞留；失败路径现在 generation-safe 清理并按状态刷新。
-- **验证**：提交 `4ffc6dca8f2362d7e2cc23c58802e9a9e85d3fb1`；完整 `verify` 连续两轮通过（103 files / 921 tests）；生产 Playwright 4/4；Chrome 151 原生 13 阶段全部九工具真实执行、annotations 精确、Home 最终 `[]`；无配置生产接口返回 93-byte 规范 500 且无泄漏；服务端与 WebMCP 独立复审均为 PASS。
+- **Record:** 2026-08-27 19:59 by Codex — Recorded interim Chrome 151 compatibility, state-tool teardown, and output-budget conclusions to prevent Task 10/11 regressions.
+- **Changes:** Expanded four tools to nine. Added four authenticated GET endpoints for claim status, pickup instructions, Staff queue, and review summary. Claimant/Staff pages register tools dynamically by role, page, and state. The activity stream shows start/end times for the latest 20 tools.
+- **Decision:** Publication, archiving, private evidence, approval/rejection/unlock, pass issuance/reissuance, role switching, and handoff remain manual actions with no WebMCP tools.
+- **Compatibility:** Chrome 151 unregistration may still affect executing tools. Write tools return canonical results before navigating or refreshing in the next macrotask. Page-generation guards protect all candidate, navigation, refresh, and activity side effects.
+- **Security boundary:** Tools strict-parse inputs again at runtime. Nested JSON Schemas reject extra fields. Each actually serialized tool result is limited to 1,500 characters. HTTP reads stream at most 65,536 bytes and cancel on overflow. Public descriptions, timelines, and report lists return only minimal allowlisted summaries.
+- **Lesson:** Filtering 50 complete reports only on the client let valid UTF-8 responses exceed the read limit. Server-side canonical `status/limit` filtering now returns summaries only. Failed candidate refreshes previously left stale `stage_claim_candidate` tools; failure paths now clear results with generation protection and refresh by state.
+- **Verification:** Commit `4ffc6dca8f2362d7e2cc23c58802e9a9e85d3fb1`; full `verify` passed twice consecutively (103 files / 921 tests), production Playwright 4/4, and native Chrome 151 completed all nine tools across 13 stages with exact annotations and final Home `[]`. Unconfigured production APIs returned a canonical 93-byte 500 without leaks. Independent server and WebMCP reviews both passed.
 
-## 2026-08-27 [Task 10：全系统安全回归与秘密门禁]
+## 2026-08-27 [Task 10: System-wide security regressions and secret gates]
 
-- **记录**：2026-08-27 20:39 by Codex — 记录贯穿式 canary、构建产物门禁和原生清理策略，防止部署/演示阶段把局部安全测试误当整体验收。
-- **改动**：新增真实 evidence→approve→issue→handoff 秘密 canary 流；补齐 reject/unlock 物理路由、过期会话、严格 JSON 流、12 个隔离 runtime env 子进程；安全头显式 `Permissions-Policy: tools=(self)`，生产 CSP 保持 nonce + strict-dynamic。
-- **构建门禁**：`verify` 在 build 后串行执行 evidence、pickup 和 sensitive-surface 三道扫描；公开 static/public 禁止私密证据、server-only marker、source map 和 sourceMappingURL；standalone 服务端 map 禁止 `sourcesContent`。
-- **踩坑**：并行 build/native 会让 `.next/standalone` 在清理窗口出现 EBUSY/缺文件假红；最终门必须独占并串行。原生 cleanup 不能因 `browser.close()` 失败跳过 server/temp 清理；现在两级终止、确认退出并限制删除到系统 Temp。
-- **门禁决策**：仅按工具名包含 `issue/reissue/handoff` 会漏同义人工写工具；改为精确九工具 allowlist，并扫描 WebMCP 源码禁止 issue/reissue/evidence/approve/reject/unlock/handoff/publish/archive/switch-role 十类人工写路径。
-- **验证**：提交 `0480fbb`；完整 `verify` 连续两轮通过（110 files / 971 tests）；生产 E2E 7/7；Chrome 151 原生九工具、runtime evidence/pickup transport canary 与最终 teardown 通过；无配置接口仍为 93-byte generic 500；三位独立复审无剩余 Critical/Important。
+- **Record:** 2026-08-27 20:39 by Codex — Recorded end-to-end canaries, build-artifact gates, and native cleanup policy to prevent treating partial security tests as full acceptance during deployment or demos.
+- **Changes:** Added a real evidence→approve→issue→handoff secret-canary flow, physical reject/unlock routes, expired-session coverage, strict JSON streaming, and 12 isolated runtime-environment subprocesses. Security headers explicitly set `Permissions-Policy: tools=(self)`; production CSP retains nonce + strict-dynamic.
+- **Build gates:** After build, `verify` runs evidence, pickup, and sensitive-surface scans sequentially. Public static/public files prohibit private evidence, server-only markers, source maps, and sourceMappingURL. Standalone server maps prohibit `sourcesContent`.
+- **Lesson:** Parallel build/native runs caused false EBUSY/missing-file failures during `.next/standalone` cleanup. Final gates require exclusive sequential execution. Native cleanup must not skip server/temp cleanup if `browser.close()` fails; it now uses two-stage termination, confirms exit, and restricts deletion to system Temp.
+- **Gate decision:** Matching tool names containing `issue/reissue/handoff` missed synonymous manual-write tools. Replaced this with an exact nine-tool allowlist and scans prohibiting ten manual-write path categories in WebMCP source: issue/reissue/evidence/approve/reject/unlock/handoff/publish/archive/switch-role.
+- **Verification:** Commit `0480fbb`; full `verify` passed twice consecutively (110 files / 971 tests), production E2E 7/7, and native Chrome 151 passed all nine tools, runtime evidence/pickup transport canaries, and final teardown. Unconfigured APIs still returned a 93-byte generic 500. Three independent reviewers reported no remaining Critical/Important findings.
 
-## 2026-08-27 [Task 11：风险路径 E2E 与 clean 原生三跑]
+## 2026-08-27 [Task 11: Risk-path E2E and three clean native runs]
 
-- **记录**：2026-08-27 21:32 by Codex — 记录浏览器风险矩阵、exact-13 契约和原子证据发布，供部署后复用同一验收路径。
-- **浏览器补证**：同实例两个竞争 Claim 最终严格一胜一败；两个 BrowserContext 与清 Cookie 重开完全隔离；一次解锁后正确证据可回到 UNDER_REVIEW；双标签 stale update 显示 STATE_CHANGED 且胜出数据不丢；服务端 digest-valid 过期凭证精确 403/FORBIDDEN；390px create→match→evidence 无溢出。
-- **最终态**：双标签 handoff 响应集合严格为 COLLECTED + ALREADY_COLLECTED；Staff、Claimant 和 RESOLVED report 均只读，终态仅保留 get_claim_status。
-- **原生证据**：新增三进程串行 wrapper，锁死 exact-13 阶段、每阶段 tools/schema、exact-9、单实例、人工工具缺失、Home=[]、cleanup 与 runtime canary；artifact 与 testing.md 使用同一可回滚发布事务并带 SHA-256。
-- **踩坑**：测试复制生产 HMAC 会把 digest mismatch 误判为 expiry；改为隔离 react-server worker 直接复用生产 keyring/pickup crypto。证据发布在两个目标换入后才 committed，backup 清理失败不得触发破坏性回滚。
-- **验证**：代码提交 `0f5d241`；完整 verify 连续两轮（114 files / 979 tests）、生产 E2E 13/13。随后 clean worktree 严格三跑，三次 base commit 均为 `0f5d2413…`、同 build、unique run ID、9/9、exact-13、cleanup=true、SHA 全匹配、Temp 残留 0；最终证据提交 `904cba3`。
+- **Record:** 2026-08-27 21:32 by Codex — Recorded the browser risk matrix, exact-13 contract, and atomic evidence publication so deployment can reuse the same acceptance path.
+- **Additional browser evidence:** Two competing claims in one instance ended with exactly one winner and one loser. Two BrowserContexts and fresh sessions after clearing cookies were fully isolated. Correct evidence after one unlock returned to UNDER_REVIEW. Stale updates across two tabs displayed STATE_CHANGED without losing the winning data. Digest-valid expired passes returned exactly 403/FORBIDDEN. The 390px create→match→evidence flow had no overflow.
+- **Final states:** Handoff responses from two tabs were exactly COLLECTED + ALREADY_COLLECTED. Staff, Claimant, and RESOLVED report views were read-only; terminal states retained only get_claim_status.
+- **Native evidence:** Added a sequential three-process wrapper enforcing exactly 13 stages, each stage's tools/schema, exactly nine tools, one instance, absence of human-action tools, Home=[], cleanup, and runtime canaries. Artifacts and testing.md publish in one rollback-capable transaction with SHA-256 checksums.
+- **Lesson:** Duplicating production HMAC in tests confused digest mismatch with expiration. An isolated react-server worker now reuses production keyring/pickup crypto directly. Evidence publication is committed only after both targets are swapped in; backup-cleanup failure must not trigger destructive rollback.
+- **Verification:** Code commit `0f5d241`; full verify passed twice (114 files / 979 tests), with production E2E 13/13. Three strict runs then used a clean worktree, each at base commit `0f5d2413…`, with the same build, unique run IDs, 9/9 tools, exactly 13 stages, cleanup=true, matching SHAs, and zero Temp leftovers. Final evidence commit: `904cba3`.
 
-## 2026-08-28 [Task 12：隔离部署资产质量加固]
+## 2026-08-28 [Task 12: Isolated deployment asset hardening]
 
-- **发布可信链**：发布准备要求 clean Git、完整 40 位 revision、独占输出锁和 Docker immutable image ID；四项 canonical manifest 将应用、官方 Node、validator 与 revision 绑定。SSH controller 再核对 clean checkout、HEAD、产物 revision，远端逐层验证 realpath、属主和权限。
-- **归档与身份**：validator 按实际 strip 0/1 后路径验证重复、祖先、符号链接与 hardlink；官方 Node 归档的固定 SHA 与 strip1 已实测。root 即使继承 umask 077，提取仍固定 022，最终 Node 与原生 SQLite smoke 必须以服务身份运行。
-- **入口门禁**：配额数据库 busy timeout 收紧为 0，外部写锁冲突立即失败；真实 10 并发 HTTP 验证在 Nginx 截止前返回且不晚消费。来源使用 `$realip_remote_addr`，IPv4-mapped IPv6 统一为 IPv4。vhost 显式关闭继承的 proxy error interception，保持应用 403 与额度 429 分离。
-- **可重复验证**：新增 `test:deployment:linux`，真实构建 Linux/amd64 镜像、解析 local-only Compose、验证 Nginx 1.22 继承行为、umask/非 root native SQLite、Unix socket 0660/group access、stale nonsocket 和 SIGTERM cleanup。Compose 仅用于本地 app/health smoke，生产唯一支持双 systemd unit + Nginx。
+- **Release trust chain:** Release preparation requires clean Git, a full 40-character revision, an exclusive output lock, and an immutable Docker image ID. A four-entry canonical manifest binds the app, official Node distribution, validator, and revision. The SSH controller rechecks the clean checkout, HEAD, and artifact revision; the remote host validates real paths, owners, and permissions at each level.
+- **Archives and identity:** The validator checks duplicates, ancestors, symlinks, and hardlinks after the actual strip 0/1 transformation. The fixed official Node archive SHA and strip1 behavior were tested. Extraction fixes umask at 022 even when root inherits 077. Final Node and native SQLite smoke tests must run as the service identity.
+- **Ingress gate:** Quota-database busy timeout is now 0, so external write-lock conflicts fail immediately. Real 10-way concurrent HTTP verification returned before the Nginx deadline without late quota consumption. Source addresses use `$realip_remote_addr`, with IPv4-mapped IPv6 normalized to IPv4. The vhost explicitly disables inherited proxy error interception, keeping application 403 responses separate from quota 429 responses.
+- **Repeatable verification:** Added `test:deployment:linux`, which builds a real Linux/amd64 image, parses local-only Compose, and checks Nginx 1.22 inheritance, umask/nonroot native SQLite, Unix socket 0660/group access, stale nonsocket handling, and SIGTERM cleanup. Compose is for local app/health smoke tests only; production supports only two systemd units plus Nginx.
 
-### 经验：Node ESM 入口路径与 systemd 符号链接
+### Lesson: Node ESM entry paths and systemd symlinks
 
-- **记录**：[2026-08-28 03:35] by Codex — 首次服务器启动暴露了本地直路径测试未覆盖的入口判断差异。
-- **现象**：`claimgate-ingress-gate.service` 启动后约 0.3 秒以状态 0 正常退出，没有创建 Unix socket。
-- **根因**：Node ESM 将 `import.meta.url` 解析为真实 release 路径，而 `process.argv[1]` 保留 `/opt/claimgate/current` 符号链接路径，字符串比较误判脚本不是主入口。
-- **修复**：入口判断先用 `realpathSync()` 规范化启动路径；Linux 部署测试改为通过 `current` 符号链接启动并验证 socket 生命周期。
-- **教训**：凡是生产 unit 通过 release symlink 启动，必须用同一路径形态做真实 Linux 回归，不能只测容器内直路径。
+- **Record:** [2026-08-28 03:35] by Codex — The first server launch exposed entry-point detection differences absent from local direct-path tests.
+- **Symptom:** `claimgate-ingress-gate.service` exited normally with status 0 about 0.3 seconds after launch without creating its Unix socket.
+- **Root cause:** Node ESM resolved `import.meta.url` to the real release path, while `process.argv[1]` retained the `/opt/claimgate/current` symlink path. String comparison incorrectly classified the script as not being the main entry point.
+- **Fix:** Entry detection first normalizes the launch path with `realpathSync()`. Linux deployment tests now launch through the `current` symlink and verify the socket lifecycle.
+- **Lesson:** When production units start through release symlinks, real Linux regression tests must use the same path form instead of testing only direct container paths.
 
-## 2026-08-28 [跨角色 Claim 上下文恢复]
+## 2026-08-28 [Restoring claim context across roles]
 
-### 经验：角色切换应携带闭合领域标识，而不是通用返回地址
+### Lesson: Role switches should carry bounded domain identifiers, not generic return URLs
 
-- **记录**：[2026-08-28 04:51] by Codex — 记录可见演示链路断点及事务闭合方案，防止后续把导航便利性变成开放重定向或一次性令牌误消费。
-- **现象**：Staff 审批后，Claimant 无法从可见入口重新找到同一 Claim；Claimant 签发凭证后，该 Claim 又不在 Staff 待审队列，完整交接只能依赖手工输入 Claim URL。
-- **根因**：角色切换只在 Home 渲染且固定重定向 `/`，而审批、签发会按设计改变队列可见性；导航没有携带经过授权的 Claim 上下文。
-- **修复**：表单只新增可选 opaque `resumeClaimId`，严格接受 2 或 3 个字段；Claim 查询、目标 Claimant 所有权、nonce、额度和会话旋转在同一事务内完成，响应位置仅由数据库 Claim 和目标角色生成；两类 Claim 页面复用共享 CSRF helper 与角色栏，并用真实 Copy/Ctrl+V E2E 覆盖完整交接。
-- **教训**：跨身份恢复业务上下文时，只传闭合领域 ID，并在一次事务中先授权再派生站内路径；不要接受 `returnTo`、URL、查询串或片段，也不要让失败验证消耗可重试的一次性能力。
+- **Record:** [2026-08-28 04:51] by Codex — Recorded the visible demo-flow break and transactional fix to prevent navigation convenience from becoming an open redirect or incorrectly consuming one-time tokens.
+- **Symptom:** After Staff approval, Claimants could not find the same claim through visible navigation. After pass issuance, the claim also disappeared from the pending Staff queue, leaving manual claim-URL entry as the only way to complete handoff.
+- **Root cause:** Role switching appeared only on Home and always redirected to `/`, while approval and issuance intentionally changed queue visibility. Navigation carried no authorized claim context.
+- **Fix:** Forms add only an optional opaque `resumeClaimId` and strictly accept two or three fields. Claim lookup, target Claimant ownership, nonce, quota, and session rotation occur in one transaction. Redirect locations derive only from the database claim and target role. Both claim page types share the CSRF helper and role bar, and real Copy/Ctrl+V E2E covers the complete handoff.
+- **Lesson:** When restoring business context across identities, pass only a bounded domain ID, authorize it in one transaction, then derive the internal path. Do not accept `returnTo`, URLs, query strings, or fragments, and do not consume retryable one-time capabilities on failed validation.
 
-## 2026-08-28 [Task 13：提交前本地与外部门禁]
+## 2026-08-28 [Task 13: Pre-submission local and external gates]
 
-- **记录**：2026-08-28 04:25 by Codex — 记录公开候选扫描、匿名外部核验和 Devpost draft 证据边界，避免把“草稿已保存”误报为“已提交”。
-- **本地门禁**：`--prepublish` 从 Git 的 tracked + untracked non-ignored 候选集检查八份提交资料、README/架构/演示/Devpost 英文契约、五个受控 pending token，以及环境文件、数据库、归档、未知二进制、真实地址、本机路径、SSH 端点、私钥和高熵 secret；每个候选先经过 lstat、realpath 与根目录边界检查。
-- **外部门禁**：`--final` 要求规范公开 URL 和全量 A/AAAA 公网解析；匿名核对 live health、GitHub public/main/MIT 与 raw README/LICENSE、YouTube Public/<180 秒/音频及 video ID，以及仓库外 canonical Devpost JSON、缩略图和至少两张有界 PNG/JPEG。
-- **边界决策**：final 是 Devpost 提交前的 draft gate；证据必须写明 `draftSaved=true`、`submitted=false`，只有管理页明确显示 `Submitted` 才能另行记录终态。
-- **验证**：TDD 目标测试 114/114；完整 Vitest 130 files passed、1 skipped，1238 tests passed、3 skipped；lint、typecheck、文件行数、secret-surface、node syntax、diff-check 与真实 `--prepublish` 全部通过。外部 final 测试均使用 mock，未冒充真实公开验收。
+- **Record:** 2026-08-28 04:25 by Codex — Recorded public-candidate scanning, anonymous external verification, and Devpost draft evidence boundaries to avoid reporting a saved draft as submitted.
+- **Local gate:** `--prepublish` checks Git's tracked and nonignored untracked candidates for eight submission documents, English README/architecture/demo/Devpost contracts, five controlled pending tokens, and environment files, databases, archives, unknown binaries, real addresses, local paths, SSH endpoints, private keys, and high-entropy secrets. Each candidate first passes lstat, realpath, and root-boundary checks.
+- **External gate:** `--final` requires canonical public URLs and fully public A/AAAA resolution. It anonymously verifies live health, GitHub public/main/MIT and raw README/LICENSE, YouTube Public/<180 seconds/audio/video ID, and canonical Devpost JSON outside the repository, a thumbnail, and at least two bounded PNG/JPEG screenshots.
+- **Boundary decision:** final is the Devpost pre-submission draft gate. Evidence must state `draftSaved=true` and `submitted=false`. A terminal state may be recorded separately only after the management page explicitly displays `Submitted`.
+- **Verification:** Targeted TDD tests 114/114; full Vitest: 130 files passed, 1 skipped, 1,238 tests passed, 3 skipped. Lint, typecheck, file lengths, secret-surface, Node syntax, diff-check, and real `--prepublish` all passed. External final tests used mocks and were not presented as real public acceptance.

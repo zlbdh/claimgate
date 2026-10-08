@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DemoRoleBar } from "./demo-role-bar";
 
-describe("最小 demo role bar", () => {
-  it("用文本展示角色、到期时间和非生产边界，并在 home 省略 resume context", () => {
+describe("Minimal demo role bar", () => {
+  it("shows role, expiration, and demo limitations as text and omits resume context on home", () => {
     const expiresAt = Date.UTC(2026, 7, 26, 14);
     render(<DemoRoleBar
       role="CLAIMANT"
@@ -25,7 +25,7 @@ describe("最小 demo role bar", () => {
     expect(form?.querySelectorAll('input[name="resumeClaimId"]')).toHaveLength(0);
   });
 
-  it("在 claim page 恰好提交一个 opaque resumeClaimId", () => {
+  it("submits exactly one opaque resumeClaimId on the claim page", () => {
     render(<DemoRoleBar
       role="STAFF"
       expiresAt={Date.UTC(2026, 7, 26, 14)}

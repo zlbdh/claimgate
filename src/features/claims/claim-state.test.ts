@@ -39,20 +39,20 @@ const CLAIM_STATES: readonly ClaimStatus[] = [
   "COLLECTED",
 ];
 
-describe("ClaimGate 状态守卫", () => {
+describe("ClaimGate state guards", () => {
   it.each(statePairs(REPORT_STATES, [
     ["DRAFT", "PUBLISHED"],
     ["DRAFT", "ARCHIVED"],
     ["PUBLISHED", "RESOLVED"],
     ["PUBLISHED", "ARCHIVED"],
-  ]))("Report 图 %s → %s 的许可为 %s", (from, to, isAllowed) => {
+  ]))("Report transition %s → %s is allowed: %s", (from, to, isAllowed) => {
     assertGraph(assertReportTransition, from, to, isAllowed);
   });
 
   it.each(statePairs(ITEM_STATES, [
     ["AVAILABLE", "HELD"],
     ["HELD", "RETURNED"],
-  ]))("Item 图 %s → %s 的许可为 %s", (from, to, isAllowed) => {
+  ]))("Item transition %s → %s is allowed: %s", (from, to, isAllowed) => {
     assertGraph(assertItemTransition, from, to, isAllowed);
   });
 
@@ -65,11 +65,11 @@ describe("ClaimGate 状态守卫", () => {
     ["LOCKED", "EVIDENCE_REQUIRED"],
     ["APPROVED", "PICKUP_READY"],
     ["PICKUP_READY", "COLLECTED"],
-  ]))("Claim 图 %s → %s 的许可为 %s", (from, to, isAllowed) => {
+  ]))("Claim transition %s → %s is allowed: %s", (from, to, isAllowed) => {
     assertGraph(assertClaimTransition, from, to, isAllowed);
   });
 
-  it("冻结状态表和其内部数组，变异不能改变守卫结果", () => {
+  it("freezes the state table and nested arrays so mutations cannot change guard results", () => {
     const tables = [allowedReportTransitions, allowedItemTransitions, allowedClaimTransitions];
 
     for (const table of tables) {

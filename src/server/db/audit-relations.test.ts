@@ -21,8 +21,8 @@ function reportInput(demoInstanceId: string) {
   };
 }
 
-describe("审计复合关系与闭合形状", () => {
-  it("数据库拒绝跨实例 report/claim 关系和不一致 resource/action 组合", () => {
+describe("Composite audit relationships and closed shapes", () => {
+  it("the database rejects cross-instance report/claim relationships and inconsistent resource/action pairs", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const first = repository.createDemoInstance();
@@ -61,7 +61,7 @@ describe("审计复合关系与闭合形状", () => {
     }
   });
 
-  it("数据库拒绝 malformed actor 及把本实例 inventory ID 当 actor/resource", () => {
+  it("the database rejects malformed actors and local inventory IDs used as actors or resources", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -90,7 +90,7 @@ describe("审计复合关系与闭合形状", () => {
     expect(JSON.stringify(events)).not.toContain(internalId);
   });
 
-  it("actor 先存在时，数据库拒绝同实例/跨实例 INSERT 或 UPDATE 成同名库存 ID", () => {
+  it("when the actor exists first, rejects same-instance and cross-instance INSERT/UPDATE to the same inventory ID", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const first = repository.createDemoInstance();
@@ -121,7 +121,7 @@ describe("审计复合关系与闭合形状", () => {
     expect(repository.getLostReport(first.demoInstanceId, report.reportId)).toBeDefined();
   });
 
-  it("库存 ID 先存在时，数据库拒绝跨实例 INSERT/UPDATE 成同名 audit actor", () => {
+  it("when the inventory ID exists first, rejects cross-instance INSERT/UPDATE to the same audit actor", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const normal = repository.createDemoInstance();

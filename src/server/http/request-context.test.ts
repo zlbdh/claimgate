@@ -51,8 +51,8 @@ function setup(role: "CLAIMANT" | "STAFF" = "CLAIMANT") {
   return { instance, sessionSigner, csrf, signed, csrfToken, request };
 }
 
-describe("固定顺序 request context", () => {
-  it("从签名 cookie 派生冻结 identity/instance/role，不读取 body/query 注入", () => {
+describe("Fixed-order request context", () => {
+  it("derives frozen identity, instance, and role from signed cookies without reading injected body/query values", () => {
     const setupResult = setup();
     const context = createAuthenticatedRequestContext({
       request: setupResult.request,
@@ -79,7 +79,7 @@ describe("固定顺序 request context", () => {
     expect(Object.isFrozen(context)).toBe(true);
   });
 
-  it("registry 允许两种 public-demo role，实例过期边界仍由服务端复核", () => {
+  it("the registry allows both public-demo roles while the server rechecks instance expiration", () => {
     const setupResult = setup("CLAIMANT");
     testDatabase!.database.prepare("UPDATE demo_instances SET expires_at_ms = ? WHERE id = ?")
       .run(NOW + 1_000, setupResult.instance.demoInstanceId);
@@ -94,7 +94,7 @@ describe("固定顺序 request context", () => {
     })).toThrow(expect.objectContaining({ code: "AUTH_REQUIRED" }));
   });
 
-  it("nonce、instance quota 与 mutation 在同一 outer transaction 回滚", () => {
+  it("nonces, instance quota, and mutation roll back in the same outer transaction", () => {
     const setupResult = setup();
     const limiter = createPersistentRateLimiter({ database: testDatabase!.database, now: () => NOW });
     const context = createAuthenticatedRequestContext({

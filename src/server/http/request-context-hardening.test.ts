@@ -64,11 +64,11 @@ function createContext(oneTime = true) {
 }
 
 describe("reviewer reproductions: closed authorization capability", () => {
-  it("role_switch 在 context 创建时拒绝 reusable CSRF", () => {
+  it("role_switch rejects reusable CSRF during context creation", () => {
     expect(() => createContext(false)).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 
-  it("未知 route key 无法构造 action/context", () => {
+  it("unknown route keys cannot construct actions or contexts", () => {
     const value = setup();
     expect(() => createAuthenticatedRequestContext({
       ...value,
@@ -78,7 +78,7 @@ describe("reviewer reproductions: closed authorization capability", () => {
     })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("adapter 的 draft_update policy 被忽略，role_switch 仍严格 10/min", () => {
+  it("the adapter draft_update policy is ignored; role_switch remains strictly limited to 10/min", () => {
     const value = setup();
     const limiter = createPersistentRateLimiter({ database: testDatabase!.database, now: () => NOW });
     for (let index = 0; index < 11; index += 1) {
@@ -116,7 +116,7 @@ describe("reviewer reproductions: closed authorization capability", () => {
     `).get()).toEqual({ requestCount: 10 });
   });
 
-  it("executor 拒绝结构相同但不是授权模块签发的 context", () => {
+  it("the executor rejects structurally identical contexts not issued by the authorization module", () => {
     const context = createContext();
     const forged = Object.freeze({ ...context }) as AuthenticatedRequestContext;
     const mutation = vi.fn(() => "forged");

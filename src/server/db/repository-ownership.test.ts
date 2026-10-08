@@ -63,8 +63,8 @@ function forceValidClaimState(
     WHERE demo_instance_id = ? AND id = ?`).run(instanceId, claimId);
 }
 
-describe("报告 owner、active claim 与保留字段后果边界", () => {
-  it("非 owner 不能 publish/archive，且版本、状态和 audit 全回滚", () => {
+describe("Report ownership, active claims, and reserved-field consequences", () => {
+  it("nonowners cannot publish/archive; versions, states, and audits roll back", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -86,7 +86,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
     expect(repository.listAuditEvents(instance.demoInstanceId)).toHaveLength(auditCount);
   });
 
-  it("PUBLISHED 报告存在任一 active Claim 时拒绝归档且无副作用", () => {
+  it("archiving a PUBLISHED report with any active claim fails without side effects", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -126,7 +126,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
   });
 
   it.each(["REJECTED", "COLLECTED"] as const)(
-    "PUBLISHED 报告仅有终态 Claim %s 时允许 owner 归档",
+    "owners may archive PUBLISHED reports whose claims are all in terminal state %s",
     (terminalStatus) => {
       testDatabase = createTestDatabase();
       const { repository, database } = testDatabase;
@@ -156,7 +156,7 @@ describe("报告 owner、active claim 与保留字段后果边界", () => {
     },
   );
 
-  it("generic Claim update 的 SQL 不触碰 reviewer_actor_id 或 pass_generation", () => {
+  it("generic Claim update SQL never touches reviewer_actor_id or pass_generation", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();

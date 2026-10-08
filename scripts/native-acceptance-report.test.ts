@@ -40,7 +40,7 @@ describe("native acceptance Markdown evidence", () => {
         artifact: `evidence/native/run-${ordinal}.json`, sha256: "b".repeat(64),
       })),
     }, result);
-    expect(markdown).toContain("开发期证据");
+    expect(markdown).toContain("Development evidence");
     expect(markdown).toContain("accept:native:3:clean");
     for (const ordinal of [1, 2, 3]) expect(markdown).toContain(`run-${ordinal}.json`);
   });

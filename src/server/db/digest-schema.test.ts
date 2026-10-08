@@ -9,8 +9,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("digest-only SQLite 约束", () => {
-  it("v4 用全局 partial unique index 拒绝非空 evidence salt 重复", () => {
+describe("Digest-only SQLite constraints", () => {
+  it("v4 rejects duplicate nonempty evidence salts with a global partial unique index", () => {
     testDatabase = createTestDatabase();
     const { database, repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -29,7 +29,7 @@ describe("digest-only SQLite 约束", () => {
     `).run(rows[0]!.salt, instance.demoInstanceId, rows[1]!.itemId, rows[1]!.slot)).toThrow();
   });
 
-  it("evidence slots 只接受 16-byte salt 与 32-byte digest 成对 BLOB", () => {
+  it("evidence slots accept only paired 16-byte salt and 32-byte digest BLOBs", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -57,7 +57,7 @@ describe("digest-only SQLite 约束", () => {
     }
   });
 
-  it("pickup digest/expiry/generation 必须成组且类型、范围一致", () => {
+  it("pickup digest, expiry, and generation must occur together with consistent types and ranges", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -119,7 +119,7 @@ describe("digest-only SQLite 约束", () => {
     `).get(instance.demoInstanceId, claim.claimId)).toEqual({ generationType: "integer" });
   });
 
-  it("metadata、idempotency 和 nonce digest 拒绝 TEXT 伪装及非 32-byte BLOB", () => {
+  it("metadata, idempotency, and nonce digests reject TEXT impostors and non-32-byte BLOBs", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();

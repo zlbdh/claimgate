@@ -35,7 +35,7 @@ function verify(candidate: unknown, priorFailedAttempts = 0) {
   });
 }
 
-describe("封闭三槽 evidence verification", () => {
+describe("Closed three-slot evidence verification", () => {
   it.each([
     [{}, 0, "INSUFFICIENT_EVIDENCE"],
     [{ unique_mark: answers.unique_mark }, 0, "INSUFFICIENT_EVIDENCE"],
@@ -45,14 +45,14 @@ describe("封闭三槽 evidence verification", () => {
     [answers, 2, "ELIGIBLE_FOR_REVIEW"],
     [{ unique_mark: "wrong", identifier_suffix: "wrong" }, 2, "LOCKED"],
     [answers, 3, "LOCKED"],
-  ])("候选=%j，prior=%d 时只返回封闭 outcome %s", (candidate, prior, outcome) => {
+  ])("candidate=%j and prior=%d return only the closed outcome %s", (candidate, prior, outcome) => {
     const result = verify(candidate, prior);
     expect(result).toEqual({ outcome });
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.keys(result)).toEqual(["outcome"]);
   });
 
-  it("即使答案缺失或首槽已匹配仍计算全部三槽", () => {
+  it("computes all three slots even when answers are missing or the first slot already matches", () => {
     const calls: string[] = [];
     const instrumented = Object.freeze({
       digest(input) {
@@ -76,7 +76,7 @@ describe("封闭三槽 evidence verification", () => {
     expect(calls).toEqual(EVIDENCE_SLOTS);
   });
 
-  it("拒绝答案对象的原型、symbol、extra key、accessor 与非法值且不触发 getter", () => {
+  it("rejects answer-object prototypes, symbols, extra keys, accessors, and invalid values without invoking getters", () => {
     let getterRuns = 0;
     const getter = Object.defineProperty({}, "unique_mark", {
       enumerable: true,
@@ -100,7 +100,7 @@ describe("封闭三槽 evidence verification", () => {
     expect(getterRuns).toBe(0);
   });
 
-  it("拒绝重复/缺失槽以及非 BLOB、错误长度 salt/digest", () => {
+  it("rejects duplicate or missing slots, non-BLOB values, and incorrect salt/digest lengths", () => {
     const invalidSets = [
       storedSlots.slice(0, 2),
       [storedSlots[0], storedSlots[0], storedSlots[2]],
@@ -120,15 +120,15 @@ describe("封闭三槽 evidence verification", () => {
     }
   });
 
-  it.each([-1, 1.5, 4, Number.NaN])("拒绝非法 prior failed-attempt 计数 %s", (prior) => {
+  it.each([-1, 1.5, 4, Number.NaN])("rejects invalid prior failed-attempt counts %s", (prior) => {
     expect(() => verify(answers, prior)).toThrow(
       expect.objectContaining({ code: "VALIDATION_FAILED" }),
     );
   });
 });
 
-describe("Staff-only 纯解锁规则", () => {
-  it("只把 LOCKED 重置成 EVIDENCE_REQUIRED/0，结果冻结", () => {
+describe("Pure Staff-only unlock rules", () => {
+  it("resets only LOCKED to EVIDENCE_REQUIRED/0 and freezes the result", () => {
     const result = unlockEvidenceLock({ role: "STAFF", status: "LOCKED", attempts: 3 });
     expect(result).toEqual({ status: "EVIDENCE_REQUIRED", attempts: 0 });
     expect(Object.isFrozen(result)).toBe(true);
@@ -138,7 +138,7 @@ describe("Staff-only 纯解锁规则", () => {
     { role: "CLAIMANT", status: "LOCKED", attempts: 3 },
     { role: "STAFF", status: "EVIDENCE_REQUIRED", attempts: 3 },
     { role: "STAFF", status: "LOCKED", attempts: 4 },
-  ])("拒绝非 Staff、非 LOCKED 或越界计数，不引入最大一次政策", (input) => {
+  ])("rejects non-Staff, non-LOCKED, and out-of-range counts without adding a one-unlock policy", (input) => {
     expect(() => unlockEvidenceLock(input as never)).toThrow(
       expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }),
     );

@@ -18,7 +18,7 @@ describe("canonical APP_ORIGIN", () => {
     "http://127.0.0.1:3100",
     "https://demo.example.test",
     "http://[::1]:3100",
-  ])("接受严格 canonical HTTP(S) origin：%s", (value) => {
+  ])("accepts strictly canonical HTTP(S) origins: %s", (value) => {
     expect(parseAppOrigin(value).origin).toBe(value);
   });
 
@@ -34,7 +34,7 @@ describe("canonical APP_ORIGIN", () => {
     "https://EXAMPLE.test",
     "https://example.test:443",
     " https://example.test",
-  ])("拒绝非 canonical origin：%s", (value) => {
+  ])("rejects noncanonical origins: %s", (value) => {
     expect(() => parseAppOrigin(value)).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
     );
@@ -48,7 +48,7 @@ describe("Origin/Host/Fetch Metadata", () => {
     ["EXAMPLE.TEST", "https://example.test"],
     ["[::1]:80", "http://[::1]"],
     ["[::1]", "http://[::1]"],
-  ])("Host 规范化默认端口与 IPv6 后匹配：%s", (host, origin) => {
+  ])("Host matches after normalizing default ports and IPv6: %s", (host, origin) => {
     expect(() => requireDemoStartOrigin(headers({
       host,
       origin,
@@ -72,7 +72,7 @@ describe("Origin/Host/Fetch Metadata", () => {
     { host: "example.test", origin: "https://example.test", fetch: "same-site" },
     { host: "example.test", origin: "https://example.test", fetch: "cross-site" },
     { host: "example.test", origin: "https://example.test", fetch: "none" },
-  ])("无 CSRF 的 start 严格拒绝非法矩阵 %#", ({ host, origin, fetch }) => {
+  ])("start without CSRF strictly rejects invalid combinations %#", ({ host, origin, fetch }) => {
     expect(() => requireDemoStartOrigin(headers({
       host,
       origin,
@@ -84,7 +84,7 @@ describe("Origin/Host/Fetch Metadata", () => {
     );
   });
 
-  it("authenticated write 可缺 Fetch Metadata，但 present 时只能 same-origin", () => {
+  it("authenticated writes may omit Fetch Metadata, but any supplied value must be same-origin", () => {
     const origin = parseAppOrigin("https://example.test");
     expect(() => requireAuthenticatedWriteOrigin(headers({
       host: "example.test",

@@ -121,9 +121,9 @@ describe("Task 9 HTTP executor hardening", () => {
   it("accepts twenty legal maximum report summaries while bounding the tool envelope", async () => {
     const reports = Array.from({ length: 20 }, (_, index) => ({
       reportId: `report-${index}-${"a".repeat(100)}`,
-      category: "界".repeat(64),
+      category: "€".repeat(64),
       timeWindow: { from: "2026-08-25T17:00:00.000Z", to: "2026-08-25T19:00:00.000Z" },
-      area: "界".repeat(64), color: "界".repeat(64), status: "DRAFT" as const, version: 1,
+      area: "€".repeat(64), color: "€".repeat(64), status: "DRAFT" as const, version: 1,
     }));
     const result = await createToolExecutor({ fetcher: vi.fn(async () => json({ reports })) })
       .listReports({ limit: 20 });

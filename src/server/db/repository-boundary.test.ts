@@ -9,8 +9,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("外部与审计 DTO 不泄漏内部库存身份", () => {
-  it("公开清单、资源结果、错误、审计和幂等结果都不出现内部 inventory ID", () => {
+describe("External and audit DTOs do not leak internal inventory identities", () => {
+  it("public lists, resource results, errors, audits, and idempotency results contain no internal inventory IDs", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();

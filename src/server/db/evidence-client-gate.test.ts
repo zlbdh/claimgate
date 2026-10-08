@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("post-build evidence client gate wiring", () => {
-  it("verify 在 build 后强制执行专用非空 client/raw 扫描", () => {
+  it("verify enforces a dedicated nonempty client/raw scan after build", () => {
     const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as {
       scripts: Record<string, string>;
     };

@@ -26,8 +26,8 @@ function digest(domain: string, value: string): Buffer {
   return createHash("sha256").update(domain).update("\0").update(value).digest();
 }
 
-describe("全库内部库存身份公共边界", () => {
-  it("实例 B 的公共 tags、description 和报告写入拒绝实例 A 内部 ID", () => {
+describe("Database-wide public boundary for internal inventory identities", () => {
+  it("instance B public tags, descriptions, and report writes reject instance A internal IDs", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const first = repository.createDemoInstance();
@@ -59,7 +59,7 @@ describe("全库内部库存身份公共边界", () => {
     )).not.toThrow();
   });
 
-  it("实例 B 的报告和 Claim 公共 DTO 读取拒绝实例 A 内部 ID", () => {
+  it("instance B report and claim public DTO reads reject instance A internal IDs", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const first = repository.createDemoInstance();
@@ -105,7 +105,7 @@ describe("全库内部库存身份公共边界", () => {
       .toBe("claimant-demo");
   });
 
-  it("实例 B 的首次与 replay 幂等 ack 拒绝实例 A 内部 ID 及嵌入值", () => {
+  it("instance B initial and replayed idempotency acknowledgments reject instance A internal IDs and embedded values", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const first = repository.createDemoInstance();

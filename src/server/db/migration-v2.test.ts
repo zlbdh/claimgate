@@ -77,8 +77,8 @@ function createV1Database(injectMigrationFailure = false) {
   return { databasePath, databaseUuid, salt };
 }
 
-describe("数据库 schema v1 到 v5 升级", () => {
-  it("验证 v1 密钥后原子重建业务表，保留数据库身份并失效旧 demo", () => {
+describe("Database schema v1-to-v5 upgrade", () => {
+  it("verifies the v1 key, atomically rebuilds business tables, preserves database identity, and invalidates old demos", () => {
     const legacy = createV1Database();
     const database = initializeDatabase({
       databasePath: legacy.databasePath,
@@ -120,7 +120,7 @@ describe("数据库 schema v1 到 v5 升级", () => {
     })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("迁移末端失败时回滚 DDL、旧业务行和 v1 metadata", () => {
+  it("failure at the end of migration rolls back DDL, old business rows, and v1 metadata", () => {
     const legacy = createV1Database(true);
     expect(() => initializeDatabase({
       databasePath: legacy.databasePath,

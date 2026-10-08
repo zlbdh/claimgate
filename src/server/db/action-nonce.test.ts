@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("single-use action nonce repository", () => {
-  it("接受 canonical immutable Base64URL digest，并把 replay 映射为 FORBIDDEN", () => {
+  it("accepts canonical immutable Base64URL digests and maps replay to FORBIDDEN", () => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     const nonceDigest = Buffer.alloc(32, 17).toString("base64url");
@@ -26,7 +26,7 @@ describe("single-use action nonce repository", () => {
     })).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 
-  it("在 outer transaction 内消费 32-byte digest，重复返回 FORBIDDEN", () => {
+  it("consumes a 32-byte digest within the outer transaction and returns FORBIDDEN on reuse", () => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     const nonceDigest = Buffer.alloc(32, 19).toString("base64url");
@@ -45,7 +45,7 @@ describe("single-use action nonce repository", () => {
     })).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 
-  it("业务异常回滚 nonce，随后可成功消费", () => {
+  it("business exceptions roll back the nonce so it can be consumed successfully later", () => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     const nonceDigest = Buffer.alloc(32, 21).toString("base64url");
@@ -71,7 +71,7 @@ describe("single-use action nonce repository", () => {
     { action: "role_switch", nonceDigest: "not-base64url" },
     { action: "role_switch", nonceDigest: Buffer.alloc(33).toString("base64url") },
     { action: "role_switch", nonceDigest: `${Buffer.alloc(32).toString("base64url")}=` },
-  ])("严格拒绝 action/digest/clock 非法输入 %#", (invalid) => {
+  ])("strictly rejects invalid action/digest/clock input %#", (invalid) => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     expect(() => testDatabase!.repository.consumeActionNonce({
@@ -80,7 +80,7 @@ describe("single-use action nonce repository", () => {
     } as never)).toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
-  it("在查询 active instance 前拒绝不安全或负数 clock", () => {
+  it("rejects unsafe or negative clocks before querying the active instance", () => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     for (const invalidNow of [-1, Number.MAX_SAFE_INTEGER + 1, Number.NaN]) {

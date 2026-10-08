@@ -91,7 +91,7 @@ const badDependencyCases = [
 ];
 
 describe("evidence salt source boundary", () => {
-  it.each(badDependencyCases)("$name 有界失败并回滚所有实例行", ({ options }) => {
+  it.each(badDependencyCases)("$name fails within bounds and rolls back all instance rows", ({ options }) => {
     testDatabase = createTestDatabase();
     const { database } = testDatabase;
     const repository = createRepository({ database, ...options() });
@@ -103,7 +103,7 @@ describe("evidence salt source boundary", () => {
     }
   });
 
-  it("跨实例复用历史 salt 时第二个实例整笔回滚", () => {
+  it("reusing a historical salt across instances rolls back the entire second instance", () => {
     testDatabase = createTestDatabase();
     const { database } = testDatabase;
     let calls = 0;
@@ -127,7 +127,7 @@ describe("evidence salt source boundary", () => {
     expect(database.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 1 });
   });
 
-  it("第二连接复用已提交 salt 时有界失败且不留部分行", () => {
+  it("reusing a committed salt on a second connection fails within bounds without leaving partial rows", () => {
     testDatabase = createTestDatabase();
     const first = testDatabase.repository.createDemoInstance();
     const firstSalt = (testDatabase.database.prepare(`
@@ -154,7 +154,7 @@ describe("evidence salt source boundary", () => {
       .toEqual({ count: 21 });
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("random source 拒绝 %s Buffer、零陷阱并整笔回滚", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("the random source rejects %s Buffers without invoking traps and rolls back everything", (kind) => {
     testDatabase = createTestDatabase();
     const counter = { count: 0 };
     const repository = createRepository({
@@ -170,7 +170,7 @@ describe("evidence salt source boundary", () => {
       .toEqual({ count: 0 });
   });
 
-  it.each(ADVERSARIAL_BUFFER_KINDS)("digester 拒绝 %s Buffer、零陷阱并整笔回滚", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("the digester rejects %s Buffers without invoking traps and rolls back everything", (kind) => {
     testDatabase = createTestDatabase();
     const counter = { count: 0 };
     const repository = createRepository({
@@ -188,7 +188,7 @@ describe("evidence salt source boundary", () => {
       .toEqual({ count: 0 });
   });
 
-  it("random/digester 拒绝 Uint8Array", () => {
+  it("random sources and digesters reject Uint8Array", () => {
     testDatabase = createTestDatabase();
     for (const repository of [
       createRepository({

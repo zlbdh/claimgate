@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeEvidence } from "./normalize-evidence";
 
-describe("举证文本规范化", () => {
+describe("Evidence text normalization", () => {
   it.each([
     ["  Blue–Star  ", "blue-star"],
     ["ＢＬＵＥ  STAR", "blue star"],
@@ -10,7 +10,7 @@ describe("举证文本规范化", () => {
     ["Blue֊Star", "blue-star"],
     ["Blue〰Star", "blue-star"],
     ["Cafe\u0301", "café"],
-  ])("按同一 NFKC/大小写/破折号/空白规则规范化 %j", (input, expected) => {
+  ])("normalizes %j using consistent NFKC, case, dash, and whitespace rules", (input, expected) => {
     expect(normalizeEvidence(input)).toBe(expected);
   });
 
@@ -25,7 +25,7 @@ describe("举证文本规范化", () => {
     "safe\ud800value",
     "x".repeat(257),
     "\ufdfa".repeat(257),
-  ])("拒绝非字符串、空值、控制/代理项和超长值", (input) => {
+  ])("rejects nonstrings, empty values, control characters, surrogates, and oversized values", (input) => {
     expect(() => normalizeEvidence(input)).toThrow(
       expect.objectContaining({ code: "VALIDATION_FAILED" }),
     );

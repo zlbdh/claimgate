@@ -269,7 +269,7 @@ Expected: all PASS; Next produces a standalone build.
 
 ```powershell
 git add package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs eslint.config.mjs vitest.config.mts playwright.config.ts src tests/e2e/webmcp-probe.spec.ts scripts docs/submission/webmcp-probe.md
-git commit -m "工程：建立 ClaimGate 与 WebMCP 兼容基线"
+git commit -m "chore: establish ClaimGate and WebMCP compatibility baseline"
 ```
 
 ### Task 2: Public-field deterministic matching
@@ -332,7 +332,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/inventory src/features/matching src/test
-git commit -m "功能：实现可解释的失物候选匹配"
+git commit -m "feat: implement explainable lost-property candidate matching"
 ```
 
 ### Task 3: Minimal domain errors and state guards
@@ -372,7 +372,7 @@ Expected: PASS.
 
 ```powershell
 git add .env.example src/shared/domain-error.ts src/features/claims/claim-state.ts src/server/security/keyring.ts src/features/claims/claim-state.test.ts src/server/security/keyring.test.ts
-git commit -m "领域：定义 ClaimGate 状态与错误边界"
+git commit -m "feat: define ClaimGate states and error boundaries"
 ```
 
 ### Task 4: SQLite repository, seed data, and isolated demo instances
@@ -426,7 +426,7 @@ Expected: PASS.
 
 ```powershell
 git add src/server/db src/server/security scripts/reset-expired-demo-instances.mjs
-git commit -m "功能：加入隔离演示数据与事务仓库"
+git commit -m "feat: add isolated demo data and transactional repository"
 ```
 
 ## Chunk 2: Authenticated product workflow
@@ -493,7 +493,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/auth src/server/http src/server/security src/app/api/demo src/components/demo-role-bar.tsx tests/integration/api-authorization.test.ts
-git commit -m "安全：隔离演示会话与角色权限"
+git commit -m "security: isolate demo sessions and role permissions"
 ```
 
 ### Task 6: Claimant report and matching workflow
@@ -548,7 +548,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/reports src/features/matching src/app/api/reports src/app/claimant src/components/candidate-card.tsx src/components/privacy-boundary.tsx tests/integration/report-routes.test.ts
-git commit -m "功能：完成报失与脱敏候选流程"
+git commit -m "feat: complete lost-report and redacted candidate workflow"
 ```
 
 ### Task 6A: Deliver the 48-hour four-tool vertical slice
@@ -600,7 +600,7 @@ Then run the same four-tool flow once in the current supported in-app/Chrome env
 
 ```powershell
 git add src/features/claims src/app/api/claims src/features/webmcp src/components/agent-activity.tsx src/components/webmcp-provider.tsx src/app/layout.tsx src/app/claimant tests/webmcp tests/e2e/claimant-flow.spec.ts docs/submission/webmcp-probe.md
-git commit -m "功能：跑通 WebMCP 四工具最小闭环"
+git commit -m "feat: complete the minimal four-tool WebMCP workflow"
 ```
 
 ### Task 6B: Blind-evidence primitives and private seed digests
@@ -658,7 +658,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/evidence src/server/db/seed.ts src/server/db/repository.ts src/server/db/repository.test.ts
-git commit -m "安全：加入加盐盲举证与私有种子摘要"
+git commit -m "security: add salted blind evidence and private seed digests"
 ```
 
 ### Task 7: Claims, blind evidence, and Staff decisions
@@ -713,7 +713,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/claims src/features/audit src/app/api/claims src/app/api/staff src/app/claimant/claims src/app/staff src/components/evidence-form.tsx src/components/staff-decision-form.tsx src/components/claim-stepper.tsx tests/integration/claim-transaction.test.ts
-git commit -m "功能：完成盲举证与人工审核闭环"
+git commit -m "feat: complete blind evidence and manual review workflow"
 ```
 
 ### Task 8: Pickup-pass issuance and atomic handoff
@@ -757,7 +757,7 @@ Expected: PASS and no raw token/secret anywhere other than the explicit manual i
 
 ```powershell
 git add src/features/claims src/server/db/repository.ts src/app/api/claims src/app/api/staff src/app/claimant/claims src/app/staff/claims src/components/pickup-pass.tsx tests/integration
-git commit -m "功能：加入一次性领取凭证与原子交接"
+git commit -m "feat: add one-time pickup passes and atomic handoff"
 ```
 
 ## Chunk 3: WebMCP, verification, deployment, and submission
@@ -832,7 +832,7 @@ Expected: PASS.
 
 ```powershell
 git add src/features/webmcp src/components/agent-activity.tsx src/app/api/claims src/app/api/staff tests/webmcp tests/integration/tool-api-routes.test.ts
-git commit -m "功能：接入动态 WebMCP 协作工具"
+git commit -m "feat: integrate dynamic WebMCP collaboration tools"
 ```
 
 ### Task 10: Security regressions and product verification
@@ -874,7 +874,7 @@ Expected: PASS.
 
 ```powershell
 git add .env.example src tests
-git commit -m "安全：封闭权限并防止秘密数据泄漏"
+git commit -m "security: enforce authorization and prevent secret leaks"
 ```
 
 ### Task 11: End-to-end flows and public-demo polish
@@ -919,7 +919,7 @@ Reset into a new isolated demo instance for each run. In ChatGPT's in-app browse
 
 ```powershell
 git add src tests/e2e docs/submission/testing.md
-git commit -m "测试：完成 ClaimGate 端到端验收"
+git commit -m "test: complete ClaimGate end-to-end acceptance"
 ```
 
 ### Task 12: Isolated deployment
@@ -967,7 +967,7 @@ Expected: PASS with existing DinnerSync/VPN/other health checks unchanged from t
 
 ```powershell
 git add src/app/api/health deploy scripts/healthcheck.mjs docs/submission/deployment.md
-git commit -m "部署：加入独立生产运行与验收配置"
+git commit -m "deploy: add isolated production runtime and acceptance configuration"
 ```
 
 ### Task 13: Public repository and submission package

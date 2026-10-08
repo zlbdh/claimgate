@@ -23,8 +23,8 @@ const EXPECTED_INSTANCE_POLICIES = Object.freeze({
   match_find: { limit: 15, windowMs: 60_000 },
 });
 
-describe("冻结的完整限流策略矩阵", () => {
-  it("精确覆盖 14 个 instance actions，另含 pre-instance demo_start", () => {
+describe("Frozen complete rate-limit policy matrix", () => {
+  it("covers exactly 14 instance actions plus pre-instance demo_start", () => {
     expect(INSTANCE_RATE_LIMIT_POLICIES).toEqual(EXPECTED_INSTANCE_POLICIES);
     expect(Object.keys(INSTANCE_RATE_LIMIT_POLICIES)).toEqual([...RATE_LIMIT_ACTIONS]);
     expect(ALL_RATE_LIMIT_POLICIES).toEqual({
@@ -38,7 +38,7 @@ describe("冻结的完整限流策略矩阵", () => {
     }
   });
 
-  it("authenticated route registry 闭合 method/path/action/roles/one-time/policy", () => {
+  it("the authenticated route registry closes over method, path, action, roles, one-time status, and policy", () => {
     expect(AUTHENTICATED_ROUTE_REGISTRY).toEqual({
       "api.demo.switch-role": {
         method: "POST",

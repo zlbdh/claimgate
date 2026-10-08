@@ -29,8 +29,8 @@ function insertManualItem(test: TestDatabase, demoInstanceId: string, id: string
   `).run(demoInstanceId, id);
 }
 
-describe("DemoInstance 与内部库存 ID 全局分离", () => {
-  it("item 先存在时，拒绝 demo instance INSERT/UPDATE 成同名 ID", () => {
+describe("Global separation of DemoInstance and internal inventory IDs", () => {
+  it("when an item exists first, rejects demo-instance INSERT/UPDATE to the same ID", () => {
     testDatabase = createTestDatabase();
     const normal = testDatabase.repository.createDemoInstance();
     insertManualItem(testDatabase, normal.demoInstanceId, "future-instance-id");
@@ -42,7 +42,7 @@ describe("DemoInstance 与内部库存 ID 全局分离", () => {
     `).run()).toThrow();
   });
 
-  it("instance 先存在时，拒绝 found item INSERT/UPDATE 成同名 ID", () => {
+  it("when an instance exists first, rejects found-item INSERT/UPDATE to the same ID", () => {
     testDatabase = createTestDatabase();
     const normal = testDatabase.repository.createDemoInstance();
     insertManualInstance(testDatabase, "reserved-public-instance-id");
@@ -57,7 +57,7 @@ describe("DemoInstance 与内部库存 ID 全局分离", () => {
     `).run(normal.demoInstanceId)).toThrow();
   });
 
-  it("注入的 instance ID 与已有内部 ID 碰撞时整笔创建回滚", () => {
+  it("an injected instance ID colliding with an existing internal ID rolls back creation", () => {
     testDatabase = createTestDatabase();
     const { database, repository } = testDatabase;
     const first = repository.createDemoInstance();
@@ -86,7 +86,7 @@ describe("DemoInstance 与内部库存 ID 全局分离", () => {
     }).toEqual(before);
   });
 
-  it("读取遗留碰撞的 public DemoInstance 时失败关闭，正常实例仍可创建读取", () => {
+  it("reading a public DemoInstance with a legacy collision fails closed; normal instances remain usable", () => {
     testDatabase = createTestDatabase();
     const { database, repository } = testDatabase;
     const normal = repository.createDemoInstance();

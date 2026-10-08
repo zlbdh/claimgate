@@ -8,8 +8,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("闭合幂等结果与公共输出边界", () => {
-  it("首调与 replay 返回同一 canonical acknowledgement，并绑定 action/result variant", () => {
+describe("Closed idempotency results and public output boundaries", () => {
+  it("initial calls and replays return the same canonical acknowledgment bound to the action/result variant", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -44,7 +44,7 @@ describe("闭合幂等结果与公共输出边界", () => {
     )).toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
-  it("拒绝别名、嵌套、数组、嵌入字符串、JSON 字符串和 custom serialization 中的内部 ID", () => {
+  it("rejects internal IDs in aliases, nested values, arrays, embedded strings, JSON strings, and custom serialization", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -83,7 +83,7 @@ describe("闭合幂等结果与公共输出边界", () => {
       .toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
-  it("公共字段写入和读取都拒绝当前实例内部 ID，tags 严格解析", () => {
+  it("public-field reads and writes reject current-instance internal IDs and strictly parse tags", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();

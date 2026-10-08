@@ -8,8 +8,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("泛化仓库不进入高后果状态", () => {
-  it("不能用 generic item/report mutation 进入 HELD、RETURNED 或 RESOLVED", () => {
+describe("Generic repositories cannot enter high-consequence states", () => {
+  it("generic item/report mutations cannot enter HELD, RETURNED, or RESOLVED", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -53,7 +53,7 @@ describe("泛化仓库不进入高后果状态", () => {
     expect(repository.listAuditEvents(instance.demoInstanceId)).toHaveLength(beforeAudit);
   });
 
-  it("不能用 generic claim mutation 审批、签发或收集", () => {
+  it("generic claim mutations cannot approve, issue passes, or collect items", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();

@@ -39,7 +39,7 @@ function contextWithRows(rows: unknown[]): RepositoryContext {
 }
 
 describe("SQLite evidence Buffer boundary", () => {
-  it.each(ADVERSARIAL_BUFFER_KINDS)("DB salt 拒绝 %s Buffer 且零陷阱", (kind) => {
+  it.each(ADVERSARIAL_BUFFER_KINDS)("rejects %s DB salt Buffers without invoking traps", (kind) => {
     const counter = { count: 0 };
     const rows = EVIDENCE_SLOTS.map((slot, index) => ({
       slot,

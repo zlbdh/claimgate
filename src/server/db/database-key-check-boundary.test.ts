@@ -12,8 +12,8 @@ afterEach(() => {
   testDatabase = undefined;
 });
 
-describe("database key-check 的精确安全边界", () => {
-  it("只检测配置密钥连续性，不加密业务内容，也不证明整库完整性", () => {
+describe("Exact security boundary of the database key check", () => {
+  it("checks only configured-key continuity, without encrypting business data or proving whole-database integrity", () => {
     testDatabase = createTestDatabase();
     const instance = testDatabase.repository.createDemoInstance();
     testDatabase.database.prepare(`
@@ -33,7 +33,7 @@ describe("database key-check 的精确安全边界", () => {
     reopened.close();
   });
 
-  it("不能阻止攻击者把文件替换成用另一把密钥初始化的空数据库", () => {
+  it("cannot prevent replacing the file with an empty database initialized under another key", () => {
     testDatabase = createTestDatabase();
     testDatabase.database.close();
     rmSync(testDatabase.databasePath, { force: true });

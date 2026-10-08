@@ -33,9 +33,9 @@ function snapshot(test: TestDatabase, demoInstanceId: string) {
   };
 }
 
-describe("Claim 创建前置约束", () => {
+describe("Claim creation preconditions", () => {
   it.each(["DRAFT", "ARCHIVED", "RESOLVED"] as const)(
-    "%s 报告不能创建 Claim，拒绝无副作用",
+    "%s reports cannot create claims, and rejection has no side effects",
     (status) => {
       testDatabase = createTestDatabase();
       const { repository, database } = testDatabase;
@@ -67,7 +67,7 @@ describe("Claim 创建前置约束", () => {
     },
   );
 
-  it("非报告 owner 不能创建 Claim，拒绝无副作用", () => {
+  it("nonowners cannot create claims, and rejection has no side effects", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const instance = repository.createDemoInstance();
@@ -95,7 +95,7 @@ describe("Claim 创建前置约束", () => {
   });
 
   it.each(["HELD", "RETURNED"] as const)(
-    "%s 物品不能创建 Claim，拒绝无副作用",
+    "%s items cannot create claims, and rejection has no side effects",
     (status) => {
       testDatabase = createTestDatabase();
       const { repository, database } = testDatabase;
@@ -123,7 +123,7 @@ describe("Claim 创建前置约束", () => {
     },
   );
 
-  it("PUBLISHED + owner + AVAILABLE 创建 Claim", () => {
+  it("PUBLISHED + owner + AVAILABLE creates a claim", () => {
     testDatabase = createTestDatabase();
     const { repository } = testDatabase;
     const instance = repository.createDemoInstance();

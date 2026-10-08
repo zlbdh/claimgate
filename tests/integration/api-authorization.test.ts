@@ -90,8 +90,8 @@ function switchRequest(token: string, csrfToken: string, extra: Record<string, s
   });
 }
 
-describe("真实 Route Handler 授权集成", () => {
-  it("start 先消耗全局额度，再 clone，直发 host-only cookie 并 303 到 /", async () => {
+describe("Real Route Handler authorization integration", () => {
+  it("start consumes global quota before cloning, sets a host-only cookie, and redirects to / with 303", async () => {
     const runtime = setup();
     const response = await runtime.start(startRequest());
     const body = await response.text();
@@ -114,7 +114,7 @@ describe("真实 Route Handler 授权集成", () => {
     `).get()).toEqual({ count: 1 });
   });
 
-  it("全局额度耗尽时不创建实例，并返回 bounded 429/Retry-After", async () => {
+  it("exhausted global quota creates no instance and returns bounded 429/Retry-After", async () => {
     const runtime = setup();
     for (let index = 0; index < 30; index += 1) {
       runtime.globalLimiter.consume();
@@ -130,7 +130,7 @@ describe("真实 Route Handler 授权集成", () => {
       .toEqual({ count: 0 });
   });
 
-  it("session mint 失败时全局 bucket 与 instance 一起回滚，unknown error 仍 bounded", async () => {
+  it("session-mint failure rolls back the global bucket and instance together; unknown errors remain bounded", async () => {
     const runtime = setup();
     const start = createStartRouteHandler({
       appOrigin: APP_ORIGIN,
@@ -154,7 +154,7 @@ describe("真实 Route Handler 授权集成", () => {
       .toEqual({ count: 0 });
   });
 
-  it("switch 用 one-time CSRF 同事务消费 nonce/quota，旋转 cookie 且不延寿", async () => {
+  it("switch consumes one-time CSRF nonce/quota in the same transaction and rotates the cookie without extending its lifetime", async () => {
     const runtime = setup();
     const startResponse = await runtime.start(startRequest());
     const claimantToken = cookieValue(startResponse.headers.get("set-cookie") ?? "");
@@ -188,7 +188,7 @@ describe("真实 Route Handler 授权集成", () => {
     `).get()).toEqual({ count: 1 });
   });
 
-  it("同一 one-time token 并发 replay 仅一成功，失败不额外消费额度", async () => {
+  it("concurrent replay of a one-time token succeeds only once; failures consume no additional quota", async () => {
     const runtime = setup();
     const startResponse = await runtime.start(startRequest());
     const token = cookieValue(startResponse.headers.get("set-cookie") ?? "");
@@ -212,7 +212,7 @@ describe("真实 Route Handler 授权集成", () => {
     `).get()).toEqual({ count: 1 });
   });
 
-  it("invalid CSRF 和 identity 注入不消耗 victim bucket/nonce", async () => {
+  it("invalid CSRF and injected identities do not consume the victim bucket or nonce", async () => {
     const runtime = setup();
     const startResponse = await runtime.start(startRequest());
     const token = cookieValue(startResponse.headers.get("set-cookie") ?? "");
@@ -232,8 +232,8 @@ describe("真实 Route Handler 授权集成", () => {
   });
 });
 
-describe("路由导出没有安全副作用方法", () => {
-  it("start/switch 只导出 POST factory，不暴露 GET/HEAD/OPTIONS mutation", async () => {
+describe("Route exports expose no unsafe side-effect methods", () => {
+  it("start/switch export only POST factories without GET/HEAD/OPTIONS mutations", async () => {
     const [startModule, switchModule] = await Promise.all([
       import("@/app/api/demo/start/route"),
       import("@/app/api/demo/switch-role/route"),

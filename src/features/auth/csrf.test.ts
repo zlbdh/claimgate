@@ -6,7 +6,7 @@ const KEY = Buffer.alloc(32, 13).toString("base64");
 const NOW = Date.UTC(2026, 7, 26, 12);
 
 describe("action-bound CSRF", () => {
-  it("token payload 不暴露 sessionId，verify 返回冻结安全元数据和 32-byte digest", () => {
+  it("token payload hides sessionId; verify returns frozen safe metadata and a 32-byte digest", () => {
     const csrf = createCsrfService({ key: KEY, now: () => NOW });
     const token = csrf.mint({
       sessionId: "session-a",
@@ -40,7 +40,7 @@ describe("action-bound CSRF", () => {
     { method: "PUT" },
     { routeId: "api.demo.start" },
     { action: "claim_approve" },
-  ])("拒绝 wrong-session/method/route/action %#", (override) => {
+  ])("rejects wrong session, method, route, or action %#", (override) => {
     const csrf = createCsrfService({ key: KEY, now: () => NOW });
     const input = {
       sessionId: "session-a",
@@ -55,7 +55,7 @@ describe("action-bound CSRF", () => {
     );
   });
 
-  it("拒绝 tamper、expiry、缺失和 oversize，且统一 FORBIDDEN", () => {
+  it("rejects tampering, expiration, missing values, and oversized input with FORBIDDEN", () => {
     let now = NOW;
     const csrf = createCsrfService({ key: KEY, now: () => now });
     const input = {
@@ -83,13 +83,13 @@ describe("action-bound CSRF", () => {
     "",
     "not-base64",
     Buffer.alloc(31).toString("base64"),
-  ])("CSRF key 缺失、弱或畸形统一配置失败 %#", (key) => {
+  ])("missing, weak, or malformed CSRF keys cause the same configuration failure %#", (key) => {
     expect(() => createCsrfService({ key })).toThrow(
       expect.objectContaining({ code: "CONFIGURATION_ERROR" }),
     );
   });
 
-  it("不同随机 nonce 产生不同 token 与 digest", () => {
+  it("different random nonces produce different tokens and digests", () => {
     const csrf = createCsrfService({ key: KEY, now: () => NOW });
     const input = {
       sessionId: "session-a",

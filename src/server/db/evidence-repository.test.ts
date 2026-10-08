@@ -92,7 +92,7 @@ function containsCanary(value: unknown, canaries: readonly string[]): boolean {
 }
 
 describe("server-internal evidence repository", () => {
-  it("private seed 依赖 server-only 且生产只导出 seeding operation", () => {
+  it("private seed depends on server-only and exports only the seeding operation in production", () => {
     const source = readFileSync(resolve("src/server/db/private-evidence-seed.ts"), "utf8");
     expect(source).toMatch(/^import "server-only";/m);
     expect(source).not.toMatch(/export function (verifyFictionalSeedForTest|privateEvidenceSeedsAreDistinctForTest|privateEvidenceAppearsInForTest)/);
@@ -100,7 +100,7 @@ describe("server-internal evidence repository", () => {
       .toEqual(["seedPrivateEvidenceForItem"]);
   });
 
-  it("缺失/未冻结 digester 或随机源在创建实例前失败，坏输出整笔回滚", () => {
+  it("missing or unfrozen digesters or random sources fail before instance creation; bad output rolls back everything", () => {
     testDatabase = createTestDatabase();
     const { database } = testDatabase;
     expect(() => createRepository({ database } as never)).toThrow(
@@ -137,7 +137,7 @@ describe("server-internal evidence repository", () => {
     }
   });
 
-  it("active scoped item 恰好返回三个 validated clone，跨实例/缺失/损坏失败关闭", () => {
+  it("active scoped items return exactly three validated clones; cross-instance, missing, or corrupt values fail closed", () => {
     testDatabase = createTestDatabase();
     const { repository, database } = testDatabase;
     const first = repository.createDemoInstance();
@@ -159,7 +159,7 @@ describe("server-internal evidence repository", () => {
       .toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("同一主密钥重启后验证强候选；换钥在 repository/service 前失败", () => {
+  it("verifies the strong candidate after restarting with the same master key; key changes fail before repository/service access", () => {
     const recording = recordingEvidenceDigester();
     testDatabase = createTestDatabase(Date.UTC(2026, 7, 26, 12), {
       evidenceDigester: recording.digester,
@@ -206,7 +206,7 @@ describe("server-internal evidence repository", () => {
     })).toThrow(expect.objectContaining({ code: "CONFIGURATION_ERROR" }));
   });
 
-  it("录制的私有答案彼此不同，不跨 DB/DTO/audit/log/serialization/source 边界且无裸摘要", () => {
+  it("recorded private answers differ, never cross DB/DTO/audit/log/serialization/source boundaries, and leave no bare digests", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const recording = recordingEvidenceDigester();

@@ -24,8 +24,8 @@ function setup(initialNow = Date.UTC(2026, 7, 26, 12)) {
   };
 }
 
-describe("持久限流的封闭输入与时间高水位", () => {
-  it("实例 limiter 不广告或接受 pre-instance demo_start", () => {
+describe("Closed persistent rate-limit inputs and time high-water mark", () => {
+  it("the instance limiter neither advertises nor accepts pre-instance demo_start", () => {
     const { test, instance } = setup();
     const limiter = createPersistentRateLimiter({ database: test.database, now: () => Date.now() });
     expect(RATE_LIMIT_ACTIONS).toEqual(RATE_ACTIONS);
@@ -44,7 +44,7 @@ describe("持久限流的封闭输入与时间高水位", () => {
     `).run(instance.demoInstanceId)).toThrow();
   });
 
-  it("只接受固定 action 矩阵与固定 actor 身份", () => {
+  it("accepts only the fixed action matrix and actor identities", () => {
     const now = Date.UTC(2026, 7, 26, 12);
     const { test, instance } = setup(now);
     const limiter = createPersistentRateLimiter({ database: test.database, now: () => now });
@@ -89,7 +89,7 @@ describe("持久限流的封闭输入与时间高水位", () => {
     { limit: 1, windowMs: Number.MAX_SAFE_INTEGER + 1 },
     { limit: 1_001, windowMs: 60_000 },
     { limit: 1, windowMs: 86_400_001 },
-  ])("拒绝不安全整数和超出上限的配置 %#", ({ limit, windowMs }) => {
+  ])("rejects unsafe integers and configurations above the maximum %#", ({ limit, windowMs }) => {
     const { test, instance } = setup();
     const limiter = createPersistentRateLimiter({ database: test.database, now: () => Date.now() });
     expect(() => limiter.consume({
@@ -101,7 +101,7 @@ describe("持久限流的封闭输入与时间高水位", () => {
     })).toThrow(expect.objectContaining({ code: "VALIDATION_FAILED" }));
   });
 
-  it("时间回拨时沿用持久高水位，不重新发放历史窗口额度", () => {
+  it("clock rollback uses the persistent high-water mark without reissuing historical-window quota", () => {
     let now = Date.UTC(2026, 7, 26, 12, 0);
     const { test, instance } = setup(now);
     const input = {

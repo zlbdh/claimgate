@@ -125,8 +125,8 @@ function evidenceTableSql(database: Database.Database): string {
   `).get() as { sql: string }).sql;
 }
 
-describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
-  it("现有 v4 重开时为重复 salt 建索引失败关闭且保持 schema4/data", () => {
+describe("Database schema v3-to-v5 evidence and claim-review rebuild", () => {
+  it("reopening v4 with duplicate salts fails closed during index creation and preserves schema4/data", () => {
     const directory = mkdtempSync(join(tmpdir(), "claimgate-v4-duplicate-"));
     directories.push(directory);
     const databasePath = join(directory, "duplicate.sqlite");
@@ -174,13 +174,13 @@ describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
     readonly.close();
   });
 
-  it("固定 v3 fixture blob，避免测试随 current schema 漂移", () => {
+  it("pins the v3 fixture blob so tests do not drift with the current schema", () => {
     expect(createHash("sha256").update(V3_SCHEMA).digest("hex")).toBe(V3_FIXTURE_SHA256);
     expect(V3_SCHEMA).toContain("length(salt) = 32");
     expect(V3_SCHEMA).not.toContain("application evidence v4");
   });
 
-  it("原子保留 v3 业务/global limiter/UUID/salt，并重建 16-byte evidence schema", () => {
+  it("atomically preserves v3 business data, global limiter, UUIDs, and salts while rebuilding the 16-byte evidence schema", () => {
     const legacy = createV3Database();
     const database = initializeDatabase({
       databasePath: legacy.databasePath,
@@ -218,7 +218,7 @@ describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
     reopened.close();
   });
 
-  it("v3 非空 legacy digest fail closed，不猜测 32→16 salt 迁移", () => {
+  it("nonempty v3 legacy digests fail closed without guessing a 32-to-16-byte salt migration", () => {
     const legacy = createV3Database({ nonNullEvidence: true });
     expect(() => initializeDatabase({
       databasePath: legacy.databasePath,
@@ -233,7 +233,7 @@ describe("数据库 schema v3 到 v5 evidence + claim review rebuild", () => {
     database.close();
   });
 
-  it("错钥或末端注入失败回滚 DDL、行、version 与 authenticator", () => {
+  it("wrong keys or injected end-stage failures roll back DDL, rows, version, and authenticator", () => {
     const wrongKey = createV3Database();
     expect(() => initializeDatabase({
       databasePath: wrongKey.databasePath,
